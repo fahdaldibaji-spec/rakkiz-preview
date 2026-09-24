@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.18</title>
+<title>ركّز — موقع تجريبي v0.19</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -231,8 +231,8 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
             <button class="btn soft" id="manageItems" style="min-height:38px">إعدادات</button>
           </div>
           <div class="substack" id="subItems"></div>
-          <button class="btn soft mt12" id="applySelectedToAll" style="width:100%">تطبيق على الجميع — اختياري</button>
-          <div class="notice oknotice mt12" id="quickEvalHint"></div>
+          <button class="btn soft mt12" id="applySelectedToAll" style="width:100%;min-height:38px">تطبيق على الجميع <span style="opacity:.65">— اختياري</span></button>
+          <div class="selected-eval mt12" id="quickEvalHint"></div>
         </div>
       </div>
 
@@ -567,6 +567,11 @@ function currentBatchEvent(studentId,main){
   const b=activeBulkFor(main);
   return b?state.events.find(e=>e.eventKey===bulkEventKey(b.batchId,studentId,main)):null;
 }
+function currentTodayEval(studentId,main){
+  const batch=currentBatchEvent(studentId,main);
+  if(batch)return batch;
+  return state.events.filter(e=>e.studentId===studentId&&e.mainId===main?.id&&e.date===state.date).slice(-1)[0]||null;
+}
 function dailyEvalKey(studentId,main){return ['daily',state.date,state.classId,studentId,main?.id||''].join('|')}
 function todayMainEvent(studentId,main){
   return state.events.find(e=>e.eventKey===dailyEvalKey(studentId,main));
@@ -629,9 +634,7 @@ function renderTools(){
     q('#subItems').innerHTML=main?main.subs.map(x=>`<button class="subitem ${x.id===state.selectedSub?'active':''} ${x.value<0?'negative':''}" data-sub="${x.id}"><span>${x.name}</span><span class="subvalue">${x.value>0?'+':''}${x.value}</span></button>`).join(''):'';
     const activeSub=main?.subs.find(x=>x.id===state.selectedSub);
     q('#quickEvalHint').textContent=activeSub
-      ? (state.module==='participation'
-          ? `المحدد: ${activeSub.name} ${activeSub.value>0?'+':''}${activeSub.value} — اضغط الطالب للتسجيل، أو اضغط مطولًا على اسمه لاختيار مشاركة أخرى. «تطبيق على الجميع» اختياري.`
-          : `المحدد: ${activeSub.name} ${activeSub.value>0?'+':''}${activeSub.value} — اضغط الطالب للتسجيل. «تطبيق على الجميع» اختياري.`)
+      ? `المحدد الآن: ${activeSub.name} ${activeSub.value>0?'+':''}${activeSub.value} — اضغط الطالب للتسجيل`
       : 'اختر بندًا فرعيًا أولًا.';
     qa('[data-sub]',q('#subItems')).forEach(b=>b.onclick=()=>{state.selectedSub=b.dataset.sub;renderTools();renderStudents()});
   }
@@ -775,14 +778,15 @@ function renderStudents(){
         </div>
       </div>`;
     }
-    const todayEv=main?currentBatchEvent(st.id,main):null;
+    const todayEv=main?currentTodayEval(st.id,main):null;
     const isTodayNegative=!!(todayEv&&Number(todayEv.value)<0);
-    return `<div class="student eval-ready ${isTodayNegative?'today-negative':''}" data-quick-eval="${st.id}">
+    const isTodayAdded=!!(todayEv&&!isTodayNegative);
+    return `<div class="student eval-ready ${isTodayNegative?'today-negative':isTodayAdded?'today-added':''}" data-quick-eval="${st.id}">
       <div class="row between">
         <div>
           <div class="sname">${st.name}</div>
           <div class="student-summary">
-            ${isTodayNegative?`<span class="mini warn">${todayEv.label}</span>`:''}
+            ${todayEv?`<span class="eval-status ${isTodayNegative?'bad':''}">${isTodayNegative?'استثناء: ':'تم: '}${todayEv.label} ${todayEv.value>0?'+':''}${todayEv.value}</span>`:''}
             ${fc?`<span class="mini warn">⚠ ${fc} متابعة</span>`:''}
             ${notes?`<span class="mini">${notes} ملاحظات</span>`:''}
           </div>
