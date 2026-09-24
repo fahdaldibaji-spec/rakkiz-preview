@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.27</title>
+<title>ركّز — موقع تجريبي v0.28</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -142,6 +142,8 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 .report-bar{height:10px;border-radius:999px;background:#edf3f2;overflow:hidden}.report-bar>span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--green2),var(--brown2));width:0;animation:barGrow .65s ease forwards}
 .report-metric{padding:9px 0;border-bottom:1px solid #edf2f1}.report-metric:last-child{border-bottom:0}@keyframes barGrow{from{width:0}to{width:var(--w)}}
 .signature-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}.signature-box{border:1px solid var(--line);border-radius:12px;padding:8px;background:#fbfdfd}.signature-box .field{min-height:40px;font-size:12.5px;padding-inline:8px}.signature-pos{font-size:11px;font-weight:800;color:var(--muted);margin-bottom:5px;text-align:center}
+.signature-head{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:7px}.signature-head input{accent-color:var(--green);width:17px;height:17px}
+.signature-box.disabled{opacity:.48}.analysis-overview{display:grid;grid-template-columns:118px 1fr;gap:12px;align-items:center}.analysis-ring{--p:0;width:112px;height:112px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at center,#fff 55%,transparent 56%),conic-gradient(var(--green) calc(var(--p)*1%),#e7efed 0);animation:ringIn .7s ease}.analysis-ring span{font-family:"IBM Plex Sans Arabic";font-size:22px;font-weight:800;color:var(--green)}.analysis-ring small{font-size:10.5px;color:var(--muted);font-weight:800}.analysis-highlights{display:flex;flex-direction:column;gap:7px}.analysis-note{border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:#fff}.analysis-note small,.analysis-note span{display:block;font-size:10.5px}.analysis-note strong{display:block;font-size:13px}.analysis-note.good{background:#eef8f3}.analysis-note.warn{background:#fff8e8}@keyframes ringIn{from{transform:scale(.9);opacity:.3}to{transform:scale(1);opacity:1}}
 @media (max-width:350px){.brand{font-size:25px}.tab{padding:0 11px}.main{padding-inline:11px}.sname{font-size:15.5px}.report-types{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -376,7 +378,7 @@ const state={
   bulkContext:null,
   lessonTitles:{},
   reportClassId:'c1',
-  reportSignatures:{rightName:'',rightRole:'المعلم',centerName:'',centerRole:'',leftName:'',leftRole:'مدير المدرسة'},
+  reportSignatures:{rightEnabled:true,rightName:'',rightRole:'المعلم',centerEnabled:false,centerName:'',centerRole:'',leftEnabled:true,leftName:'',leftRole:'مدير المدرسة'},
   tempPlanEvidence:[],
   codeHistory:[
     {studentId:'s1',oldCode:null,newCode:'R27',date:'2026-09-01',type:'generated'}
@@ -948,7 +950,15 @@ function reportBody(studentId,type){
     return '<table class="table"><tr><th>الاختبار</th><th>الدرجة</th><th>النسبة</th></tr>'+r.tests.map(e=>'<tr><td>'+(e.label||'اختبار')+'</td><td>'+e.value+'/'+e.max+'</td><td>'+Math.round(Number(e.value)/Number(e.max)*100)+'%</td></tr>').join('')+'</table><div class="mt12">'+renderMetric('متوسط الاختبارات',r.testPct,'')+'</div>';
   }
   if(type==='analysis'){
-    return renderMetric('الحضور',r.attendancePct,'')+renderMetric('الاختبارات',r.testPct,'')+r.itemRows.map(x=>renderMetric(x.name,x.pct,x.value+'/'+x.max)).join('');
+    const metrics=[{name:'الحضور',pct:r.attendancePct},{name:'الاختبارات',pct:r.testPct},...r.itemRows];
+    const sorted=metrics.slice().sort((a,b)=>Number(b.pct)-Number(a.pct));
+    const best=sorted[0], low=sorted.at(-1);
+    const overall=Math.round(metrics.reduce((a,x)=>a+Number(x.pct||0),0)/Math.max(1,metrics.length));
+    return '<div class="analysis-overview">'
+      +'<div class="analysis-ring" style="--p:'+overall+'"><span>'+overall+'%</span><small>المؤشر العام</small></div>'
+      +'<div class="analysis-highlights"><div class="analysis-note good"><small>أقوى جانب</small><strong>'+(best?.name||'—')+'</strong><span>'+(best?.pct||0)+'%</span></div><div class="analysis-note warn"><small>يحتاج اهتمام</small><strong>'+(low?.name||'—')+'</strong><span>'+(low?.pct||0)+'%</span></div></div>'
+      +'</div><div class="section-title mt16">تفصيل الأداء</div>'
+      +metrics.map(x=>renderMetric(x.name,x.pct,x.value!=null&&x.max!=null?x.value+'/'+x.max:'')).join('');
   }
   const summary='<div class="grid2"><div class="panel"><div class="small">مؤشر الأداء</div><div class="h2">'+(st.perf||0)+'/100</div></div><div class="panel"><div class="small">الحضور</div><div class="h2">'+r.attendancePct+'%</div></div><div class="panel"><div class="small">متوسط الاختبارات</div><div class="h2">'+r.testPct+'%</div></div><div class="panel"><div class="small">متابعات مفتوحة</div><div class="h2">'+r.follow+'</div></div></div>';
   const items='<div class="section-title mt16">التقييمات</div><div class="panel">'+(r.itemRows.length?r.itemRows.map(x=>'<div class="row between" style="padding:5px 0"><span>'+x.name+'</span><strong>'+x.value+'/'+x.max+'</strong></div>').join(''):'<div class="small">لا توجد تقييمات بعد.</div>')+'</div>';
