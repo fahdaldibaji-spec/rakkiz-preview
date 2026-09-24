@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.9</title>
+<title>ركّز — موقع تجريبي v0.10</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -104,6 +104,8 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 .notice{padding:10px 12px;border-radius:13px;background:var(--goldbg);color:#7e621f;font-size:12.5px;font-weight:700;border:1px solid #f0dfb4}
 .oknotice{background:var(--green3);color:var(--green);border-color:#cfe2df}
 .dangernotice{background:var(--redbg);color:var(--red);border-color:#f0cfcb}
+.toast{position:fixed;right:50%;transform:translateX(50%);bottom:86px;z-index:40;width:min(390px,calc(100% - 28px));padding:11px 13px;border-radius:14px;background:#17383a;color:#fff;font-size:12.5px;font-weight:800;line-height:1.7;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.toast.warn{background:#785842}
 .hr{height:1px;background:#edf2f1;margin:12px 0}
 .table{width:100%;border-collapse:collapse}
 .table th,.table td{padding:9px 6px;text-align:right;border-bottom:1px solid #edf2f1;font-size:12.5px}
@@ -267,6 +269,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
     <button data-nav="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg><span>الحساب</span></button>
   </nav>
 
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <div id="overlay" class="overlay hidden" aria-live="polite">
     <div class="sheet">
       <div class="sheetbar"></div>
@@ -313,14 +316,14 @@ const state={
   ],
   scheduleSettings:{notify:false,before:5},
   attendance:{},
-  attendanceGrade:{max:10,absent:-1,late:-0.5,excused:0},
+  attendanceGrade:{max:10,mode:'decrease',present:0,absent:-1,late:-0.5,excused:0},
   events:[],
   codeHistory:[
     {studentId:'s1',oldCode:null,newCode:'R27',date:'2026-09-01',type:'generated'}
   ],
   items:{
     participation:[
-      {id:'p1',name:'المشاركة الصفية',max:10,base:'zero',subs:[
+      {id:'p1',name:'المشاركة الصفية',max:10,base:'zero',mode:'increase',subs:[
         {id:'p1a',name:'إجابة شفهية',value:1,follow:false},
         {id:'p1b',name:'حل على السبورة',value:2,follow:false},
         {id:'p1c',name:'مشاركة مميزة',value:3,follow:false},
@@ -328,7 +331,7 @@ const state={
       ]}
     ],
     homework:[
-      {id:'h1',name:'الواجب',max:10,base:'zero',subs:[
+      {id:'h1',name:'الواجب',max:10,base:'zero',mode:'increase',subs:[
         {id:'h1a',name:'كامل',value:2,follow:false},
         {id:'h1b',name:'ناقص',value:-1,follow:true},
         {id:'h1c',name:'لم يحضر',value:-2,follow:true},
@@ -336,7 +339,7 @@ const state={
       ]}
     ],
     behavior:[
-      {id:'b1',name:'السلوك',max:10,base:'full',subs:[
+      {id:'b1',name:'السلوك',max:10,base:'full',mode:'decrease',subs:[
         {id:'b1a',name:'مشاغب',value:-1,follow:true},
         {id:'b1b',name:'نائم',value:-2,follow:true},
         {id:'b1c',name:'حديث جانبي',value:-0.5,follow:true},
@@ -345,7 +348,7 @@ const state={
       ]}
     ],
     custom:[
-      {id:'cst1',name:'القراءة',max:10,base:'zero',subs:[
+      {id:'cst1',name:'القراءة',max:10,base:'zero',mode:'increase',subs:[
         {id:'cst1a',name:'ممتازة',value:2,follow:false},
         {id:'cst1b',name:'جيدة',value:1,follow:false},
         {id:'cst1c',name:'يحتاج إعادة',value:-0.5,follow:true}
@@ -358,6 +361,8 @@ function q(s,r=app){return r.querySelector(s)}
 function qa(s,r=app){return [...r.querySelectorAll(s)]}
 function openSheet(html){sheet.innerHTML=html;overlay.classList.remove('hidden')}
 function closeSheet(){overlay.classList.add('hidden');sheet.innerHTML=''}
+let toastTimer=null;
+function showToast(msg,kind='warn'){const t=q('#toast');if(!t)return;t.textContent=msg;t.className='toast '+kind;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.add('hidden'),3800)}
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeSheet()});
 
 const dayNames=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
@@ -435,7 +440,22 @@ q('#todayBtn').addEventListener('click',()=>{state.date='2026-09-24';renderDate(
 function currentStudents(){return state.students.filter(s=>s.classId===state.classId)}
 function attKey(sid){return state.date+'|'+state.classId+'|'+sid}
 function getAtt(sid){return state.attendance[attKey(sid)]||'present'}
-function setAtt(sid,val){state.attendance[attKey(sid)]=val;renderStudents()}
+function ensureAttendanceDay(){currentStudents().forEach(st=>{const k=attKey(st.id);if(!(k in state.attendance))state.attendance[k]='present'})}
+function setAtt(sid,val){
+  const before=attendanceScoreFor(sid), g=state.attendanceGrade, effect=Number(g[val]??0);
+  state.attendance[attKey(sid)]=val;
+  const key='attendance|'+state.date+'|'+state.classId+'|'+sid;
+  let ev=state.events.find(e=>e.eventKey===key);
+  const negative=(val==='absent'||val==='late'||effect<0);
+  if(negative){
+    if(ev){ev.label=attLabels[val];ev.value=effect;ev.follow=true;ev.resolved=false;ev.updatedAt=new Date().toISOString()}
+    else state.events.push({id:'e'+Date.now()+Math.random(),eventKey:key,studentId:sid,date:state.date,module:'attendance',label:attLabels[val],value:effect,follow:true,resolved:false,createdAt:new Date().toISOString()});
+  }else if(ev){ev.resolved=true;ev.updatedAt=new Date().toISOString()}
+  const after=attendanceScoreFor(sid);
+  if(after===before&&effect<0&&after===0)showToast(`لم يُطبّق الخصم ${effect} لأن الدرجة عند الحد الأدنى 0/${g.max}. لا يوجد رصيد سالب مؤجل.`);
+  if(after===before&&effect>0&&after===g.max)showToast(`لم تُضف +${effect} لأن الدرجة عند الحد الأعلى ${g.max}/${g.max}. لا يوجد رصيد زائد مؤجل.`);
+  renderStudents();
+}
 const attLabels={present:'حاضر',absent:'غائب',late:'متأخر',excused:'مستأذن'};
 function cycleAtt(sid){
   const seq=['present','absent','late','excused'], i=seq.indexOf(getAtt(sid));
@@ -456,23 +476,24 @@ function ensureItemSelection(){
   const main=src.find(x=>x.id===state.selectedMain);
   if(main && !main.subs.some(x=>x.id===state.selectedSub))state.selectedSub=main.subs[0]?.id||null;
 }
+function itemMode(main){return main.mode||(main.base==='full'?'decrease':'increase')}
+function clampScore(v,max){return Math.max(0,Math.min(max,v))}
+function orderedItemEvents(studentId,mainId){
+  return state.events.filter(e=>e.studentId===studentId&&e.mainId===mainId).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.createdAt||'').localeCompare(b.createdAt||''));
+}
 function scoreFor(studentId,main){
-  // لا يوجد "نوع حساب" يختاره المعلم:
-  // البنود التجميعية تبدأ من صفر، والسلوك يبدأ من الدرجة الكاملة.
-  let val=main.base==='full'?main.max:0;
-  state.events.filter(e=>e.studentId===studentId&&e.mainId===main.id).forEach(e=>val+=e.value);
-  return Math.max(0,Math.min(main.max,val));
+  let val=itemMode(main)==='decrease'?main.max:0;
+  orderedItemEvents(studentId,main.id).forEach(e=>{val=clampScore(val+Number(e.value||0),main.max)});
+  return val;
 }
 function attendanceScoreFor(studentId){
-  let val=state.attendanceGrade.max;
-  Object.entries(state.attendance).forEach(([key,status])=>{
-    const parts=key.split('|');
-    if(parts[2]!==studentId)return;
-    if(status==='absent')val+=state.attendanceGrade.absent;
-    if(status==='late')val+=state.attendanceGrade.late;
-    if(status==='excused')val+=state.attendanceGrade.excused;
-  });
-  return Math.max(0,Math.min(state.attendanceGrade.max,val));
+  const g=state.attendanceGrade;
+  let val=g.mode==='increase'?0:g.max;
+  Object.entries(state.attendance)
+    .filter(([key])=>key.split('|')[2]===studentId)
+    .sort((a,b)=>a[0].split('|')[0].localeCompare(b[0].split('|')[0]))
+    .forEach(([,status])=>{val=clampScore(val+Number(g[status]??0),g.max)});
+  return val;
 }
 function followupAllocatedTotal(){
   const builtins=['participation','homework','behavior']
@@ -481,12 +502,22 @@ function followupAllocatedTotal(){
   const custom=(state.items.custom||[]).reduce((a,x)=>a+Number(x.max||0),0);
   return Number(state.attendanceGrade.max||0)+builtins+custom;
 }
+function looksNegative(sub){
+  const name=String(sub?.name||'');
+  return Number(sub?.value||0)<0 || !!sub?.follow || /(لم |ناقص|غياب|غائب|متأخر|مشاغب|نائم|عدم|نسي|مفقود|يحتاج|لم يحضر|غير مكتمل)/.test(name);
+}
 function addEvent(studentId,main,sub){
-  state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:sub.follow,createdAt:new Date().toISOString()});
+  const before=scoreFor(studentId,main), autoFollow=looksNegative(sub);
+  state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:autoFollow,resolved:false,createdAt:new Date().toISOString()});
+  const after=scoreFor(studentId,main), raw=Number(sub.value||0), actual=after-before;
+  if(autoFollow)showToast('تم إنشاء تنبيه متابعة للطالب تلقائيًا بسبب الحدث السلبي.');
+  if(raw<0&&actual===0&&after===0)showToast(`الدرجة عند 0/${main.max}: لم يُطبّق الخصم ${raw} ولن يُحفظ كرصد سالب مؤجل.`);
+  else if(raw>0&&actual===0&&after===main.max)showToast(`الدرجة عند ${main.max}/${main.max}: لم تُضف +${raw} ولن يُحفظ رصيد زائد.`);
+  else if(actual!==raw)showToast(`طُبق فعليًا ${actual>0?'+':''}${actual} فقط للمحافظة على الحد 0–${main.max}.`);
   renderStudents();
 }
 function followCount(studentId){
-  return state.events.filter(e=>e.studentId===studentId&&e.follow).length;
+  return state.events.filter(e=>e.studentId===studentId&&e.follow&&!e.resolved).length;
 }
 
 function renderModuleTabs(){
@@ -507,7 +538,7 @@ function renderTools(){
   q('#itemTools').classList.toggle('hidden',!(state.module==='participation'||state.module==='homework'||state.module==='behavior'||state.module.startsWith('custom:')));
   q('#testTools').classList.toggle('hidden',state.module!=='tests');
   if(state.module==='attendance'){
-    q('#attendanceGradeDesc').textContent=`الدرجة الكاملة ${state.attendanceGrade.max} — غياب ${state.attendanceGrade.absent}، تأخر ${state.attendanceGrade.late}`;
+    q('#attendanceGradeDesc').textContent=`${state.attendanceGrade.mode==='increase'?'تزايد · يبدأ 0':'تناقص · يبدأ '+state.attendanceGrade.max}/${state.attendanceGrade.max} — غياب ${state.attendanceGrade.absent>0?'+':''}${state.attendanceGrade.absent}، تأخر ${state.attendanceGrade.late>0?'+':''}${state.attendanceGrade.late}`;
     qa('.filter',q('#attendanceFilters')).forEach(b=>{
       b.classList.toggle('active',b.dataset.filter===state.attFilter);
       b.onclick=()=>{state.attFilter=b.dataset.filter;renderStudents();qa('.filter').forEach(x=>x.classList.toggle('active',x.dataset.filter===state.attFilter));};
@@ -516,7 +547,7 @@ function renderTools(){
   if(!q('#itemTools').classList.contains('hidden')){
     ensureItemSelection();
     const src=moduleSource(), main=src.find(x=>x.id===state.selectedMain);
-    q('#itemModeDesc').textContent=main?`${main.name} · الدرجة الكاملة ${main.max} · لا يتجاوز المجموع ${main.max}`:'لا توجد بنود';
+    q('#itemModeDesc').textContent=main?`${main.name} · ${itemMode(main)==='increase'?'تزايد: يبدأ 0':'تناقص: يبدأ '+main.max}/${main.max} · الحد 0–${main.max}`:'لا توجد بنود';
     q('#mainItems').innerHTML=src.map(x=>`<button class="chip ${x.id===state.selectedMain?'active':''}" data-main="${x.id}">${x.name} /${x.max}</button>`).join('');
     qa('[data-main]',q('#mainItems')).forEach(b=>b.onclick=()=>{state.selectedMain=b.dataset.main;state.selectedSub=null;renderTools();renderStudents()});
     q('#subItems').innerHTML=main?main.subs.map(x=>`<button class="subitem ${x.id===state.selectedSub?'active':''} ${x.value<0?'negative':''}" data-sub="${x.id}"><span>${x.name}</span><span class="subvalue">${x.value>0?'+':''}${x.value}</span></button>`).join(''):'';
@@ -528,20 +559,27 @@ q('#attendanceGradeBtn').addEventListener('click',()=>openAttendanceGrade());
 function openAttendanceGrade(){
   const g=state.attendanceGrade;
   openSheet(`<div class="h2">درجة الحضور</div>
-    <div class="small mt8">حدد فقط الدرجة الكاملة والخصم لكل حالة. الحضور يبدأ من الدرجة الكاملة، وتصحيح الحالة يعيد احتساب الدرجة تلقائيًا.</div>
-    <div class="label mt16">الدرجة الكاملة للحضور</div><input class="field" id="agMax" type="number" min=".25" step=".25" value="${g.max}">
-    <div class="grid3 mt12">
+    <div class="small mt8">اختر طريقة الاحتساب ثم حدد أثر كل حالة.</div>
+    <div class="label mt16">طريقة الاحتساب</div>
+    <div class="seg"><button data-agmode="increase" class="${g.mode==='increase'?'active':''}">تزايد · يبدأ 0</button><button data-agmode="decrease" class="${g.mode==='decrease'?'active':''}">تناقص · يبدأ من الكامل</button></div>
+    <div class="label mt12">الدرجة الكاملة للحضور</div><input class="field" id="agMax" type="number" min=".25" step=".25" value="${g.max}">
+    <div class="grid2 mt12">
+      <div><div class="label">حاضر</div><input class="field" id="agPresent" type="number" step=".25" value="${g.present??0}"></div>
       <div><div class="label">غياب</div><input class="field" id="agAbsent" type="number" step=".25" value="${g.absent}"></div>
       <div><div class="label">تأخر</div><input class="field" id="agLate" type="number" step=".25" value="${g.late}"></div>
       <div><div class="label">مستأذن</div><input class="field" id="agExcused" type="number" step=".25" value="${g.excused}"></div>
     </div>
-    <div class="notice mt12">مثال: الدرجة الكاملة 10، والغياب -1. الطالب الذي سجل عليه غياب واحد يصبح 9/10. إذا صححت الحالة لاحقًا إلى حاضر، تعود الدرجة تلقائيًا.</div>
-    <div class="small mt12">إجمالي درجات المتابعة المخصصة حاليًا: ${followupAllocatedTotal()}</div>
+    <div class="notice mt12" id="agExample"></div>
+    <div class="notice oknotice mt8">أي غياب/تأخر أو أثر سلبي ينشئ تنبيه متابعة للطالب تلقائيًا. تصحيح الحالة إلى حاضر أو مستأذن يغلق تنبيه ذلك اليوم.</div>
     <button class="btn primary mt16" id="saveAttendanceGrade" style="width:100%">حفظ</button>`);
+  let mode=g.mode||'decrease';
+  function refreshExample(){q('#agExample',sheet).textContent=mode==='increase'?'مثال: يبدأ الطالب 0/10. إذا كانت «حاضر» +1 يصبح 1/10. أي خصم وهو عند صفر يبقى صفر ولا يُرحّل للمستقبل.':'مثال: يبدأ الطالب 10/10. إذا كان الغياب -1 يصبح 9/10. تصحيح الغياب لاحقًا يعيد احتساب الدرجة تلقائيًا.'}
+  refreshExample();
+  qa('[data-agmode]',sheet).forEach(b=>b.onclick=()=>{mode=b.dataset.agmode;qa('[data-agmode]',sheet).forEach(x=>x.classList.toggle('active',x===b));refreshExample()});
   q('#saveAttendanceGrade',sheet).onclick=()=>{
-    const max=Number(q('#agMax',sheet).value), absent=Number(q('#agAbsent',sheet).value), late=Number(q('#agLate',sheet).value), excused=Number(q('#agExcused',sheet).value);
-    if(![max,absent,late,excused].every(Number.isFinite)||max<=0)return;
-    state.attendanceGrade={max,absent,late,excused};
+    const max=Number(q('#agMax',sheet).value), present=Number(q('#agPresent',sheet).value), absent=Number(q('#agAbsent',sheet).value), late=Number(q('#agLate',sheet).value), excused=Number(q('#agExcused',sheet).value);
+    if(![max,present,absent,late,excused].every(Number.isFinite)||max<=0)return;
+    state.attendanceGrade={max,mode,present,absent,late,excused};
     closeSheet();renderFollowup();
   };
 }
@@ -588,16 +626,17 @@ function renderStudents(){
   qa('[data-note]',box).forEach(b=>b.onclick=()=>openNote(b.dataset.note));
   qa('[data-grade-one]',box).forEach(b=>b.onclick=()=>openManualGradeOne(b.dataset.gradeOne));
 }
-function renderFollowup(){const c=state.classes.find(x=>x.id===state.classId);q('#followupClassTitle').textContent=c?`${c.grade} — ${c.name}`:'الفصل';renderDate();renderModuleTabs();renderTools();renderStudents()}
+function renderFollowup(){const c=state.classes.find(x=>x.id===state.classId);q('#followupClassTitle').textContent=c?`${c.grade} — ${c.name}`:'الفصل';ensureAttendanceDay();renderDate();renderModuleTabs();renderTools();renderStudents()}
 
 function openStudentCard(id){
-  const s=state.students.find(x=>x.id===id), ev=state.events.filter(e=>e.studentId===id).slice(-8).reverse();
+  const s=state.students.find(x=>x.id===id), ev=state.events.filter(e=>e.studentId===id).slice(-8).reverse(), alerts=state.events.filter(e=>e.studentId===id&&e.follow&&!e.resolved).slice().reverse();
   openSheet(`<div class="row between"><div><div class="h2">${s.name}</div><div class="small">الكود ${s.code||'بدون كود'} · الأداء ${s.perf}/100</div></div><button class="iconbtn" id="xclose">×</button></div>
-    ${followCount(id)?`<div class="notice mt12">⚠ لدى الطالب ${followCount(id)} عناصر تحتاج متابعة. النظام سجلها تلقائيًا من البنود، وليست ملاحظات فقط.</div>`:'<div class="notice oknotice mt12">لا توجد متابعة مفتوحة.</div>'}
+    ${alerts.length?`<div class="notice mt12">⚠ لدى الطالب ${alerts.length} تنبيهات متابعة أنشأها النظام من الحالات السلبية.</div><div class="mt8">${alerts.map(e=>`<div class="panel mt8 row between"><div><strong>${e.label||e.module}</strong><div class="small">${e.date} · ${e.value>0?'+':''}${e.value??''}</div></div><button class="btn soft" style="min-height:34px" data-resolve="${e.id}">تمت المتابعة</button></div>`).join('')}</div>`:'<div class="notice oknotice mt12">لا توجد متابعة مفتوحة.</div>'}
     <div class="section-title mt16">آخر الأحداث</div>
-    ${ev.length?ev.map(e=>`<div class="panel mt8"><strong>${e.label||e.module}</strong><div class="small">${e.date} · ${e.value>0?'+':''}${e.value??''}</div></div>`).join(''):'<div class="small">لا توجد أحداث بعد.</div>'}
+    ${ev.length?ev.map(e=>`<div class="panel mt8"><strong>${e.label||e.module}</strong><div class="small">${e.date} · ${e.value>0?'+':''}${e.value??''} ${e.follow?(e.resolved?'· تمت المتابعة':'· يحتاج متابعة'):''}</div></div>`).join(''):'<div class="small">لا توجد أحداث بعد.</div>'}
     <button class="btn soft mt16" id="cardNote" style="width:100%">+ إضافة ملاحظة أو تذكير</button>`);
   q('#xclose',sheet).onclick=closeSheet;
+  qa('[data-resolve]',sheet).forEach(b=>b.onclick=()=>{const e=state.events.find(x=>x.id===b.dataset.resolve);if(e)e.resolved=true;closeSheet();renderStudents();openStudentCard(id)});
   q('#cardNote',sheet).onclick=()=>{closeSheet();openNote(id)};
 }
 function openNote(id){
@@ -620,13 +659,14 @@ function openAddMainItem(){
   openSheet(`<div class="h2">إضافة بند رئيسي</div><div class="small mt8">سيظهر البند الجديد بجانب «الاختبارات» في شريط المتابعة.</div>
   <div class="label mt16">اسم البند</div><input class="field" id="miName" placeholder="مثال: الحفظ">
   <div class="label mt12">الدرجة الكاملة للبند</div><input class="field" id="miMax" type="number" min="0.25" step=".25" value="10">
-  <div class="notice mt12">يكفي تحديد الدرجة الكاملة. البنود الفرعية تستطيع الإضافة أو الخصم، والنظام يمنع المجموع من النزول عن 0 أو تجاوز الدرجة الكاملة.</div>
+  <div class="label mt12">طريقة الاحتساب</div><select class="field" id="miMode"><option value="increase">تزايد — يبدأ 0</option><option value="decrease">تناقص — يبدأ من الدرجة الكاملة</option></select>
+  <div class="notice mt12">في التزايد يبدأ الطالب من صفر، وفي التناقص يبدأ من الدرجة الكاملة. كل حدث يُطبق فورًا داخل الحد 0 إلى الدرجة الكاملة، ولا يوجد رصيد سالب أو زائد مخفي.</div>
   <div class="row mt16"><button class="btn soft" id="cancelMI">إلغاء</button><button class="btn primary" id="saveMI" style="flex:1">إنشاء البند</button></div>`);
   q('#cancelMI',sheet).onclick=closeSheet;
   q('#saveMI',sheet).onclick=()=>{
-    const name=q('#miName',sheet).value.trim(), max=Number(q('#miMax',sheet).value);
+    const name=q('#miName',sheet).value.trim(), max=Number(q('#miMax',sheet).value), mode=q('#miMode',sheet).value;
     if(!name||!Number.isFinite(max)||max<=0)return;
-    const id='cst'+Date.now();state.items.custom.push({id,name,max,base:'zero',subs:[]});
+    const id='cst'+Date.now();state.items.custom.push({id,name,max,base:mode==='decrease'?'full':'zero',mode,subs:[]});
     state.module='custom:'+id;closeSheet();renderFollowup();openManageItems();
   }
 }
@@ -638,22 +678,26 @@ function openManageItems(){
   if(!main){return openAddMainItem()}
   openSheet(`<div class="row between"><div><div class="h2">إدارة ${main.name}</div><div class="small">الدرجة الكاملة ${main.max} — الإضافة والخصم داخل هذا الحد</div></div><button class="iconbtn" id="miClose">×</button></div>
   <div class="panel mt12">
-    <div class="label">الدرجة الكاملة للبند الرئيسي</div>
+    <div class="label">طريقة الاحتساب</div>
+    <select class="field" id="editMainMode"><option value="increase">تزايد — يبدأ 0</option><option value="decrease">تناقص — يبدأ من الدرجة الكاملة</option></select>
+    <div class="label mt12">الدرجة الكاملة للبند الرئيسي</div>
     <div class="row"><input class="field" id="editMainMax" type="number" min=".25" step=".25" value="${main.max}"><button class="btn primary" id="saveMainMax">حفظ</button></div>
-    <div class="small mt8">إجمالي درجات المتابعة المخصصة حاليًا: ${followupAllocatedTotal()}</div>
+    <div class="small mt8">تغيير الطريقة يعيد احتساب السجل نفسه من البداية؛ لا يحذف الأحداث.</div>
   </div>
   <div class="section-title mt16">البنود الفرعية</div>
   <div id="subManage">${main.subs.length?main.subs.map(s=>`<div class="panel mt8 row between"><div><strong>${s.name}</strong><div class="small">${s.value>0?'+':''}${s.value} ${s.follow?'· يحتاج متابعة':''}</div></div><button class="btn danger" style="min-height:36px" data-del-sub="${s.id}">حذف</button></div>`).join(''):'<div class="small">لا توجد بنود فرعية. يمكنك إضافة بنود موجبة أو سالبة حسب طريقة المعلم.</div>'}</div>
   <div class="hr"></div>
   <div class="section-title">+ بند فرعي</div>
   <input class="field" id="subName" placeholder="مثال: نائم">
-  <div class="grid2 mt8"><input class="field" id="subVal" type="number" step=".25" value="-1"><select class="field" id="subFollow"><option value="yes">يحتاج متابعة</option><option value="no">لا يحتاج متابعة</option></select></div>
+  <div class="grid2 mt8"><input class="field" id="subVal" type="number" step=".25" value="-1"><select class="field" id="subFollow"><option value="no">تلقائي</option><option value="yes">متابعة حتى لو كان موجبًا</option></select></div>
+  <div class="small mt8">أي خصم أو وصف سلبي واضح ينشئ تنبيه متابعة تلقائيًا؛ لا تحتاج لتفعيل التنبيه يدويًا.</div>
   <button class="btn primary mt12" id="addSub" style="width:100%">إضافة</button>`);
   q('#miClose',sheet).onclick=()=>{closeSheet();renderFollowup()};
+  q('#editMainMode',sheet).value=itemMode(main);
   q('#saveMainMax',sheet).onclick=()=>{
     const max=Number(q('#editMainMax',sheet).value);
     if(!Number.isFinite(max)||max<=0)return;
-    main.max=max;
+    main.max=max;main.mode=q('#editMainMode',sheet).value;main.base=main.mode==='decrease'?'full':'zero';
     closeSheet();renderFollowup();openManageItems();
   };
   qa('[data-del-sub]',sheet).forEach(b=>b.onclick=()=>{main.subs=main.subs.filter(s=>s.id!==b.dataset.delSub);closeSheet();openManageItems()});
