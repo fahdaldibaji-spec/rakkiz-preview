@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.23</title>
+<title>ركّز — موقع تجريبي v0.24</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -391,13 +391,7 @@ const state={
         {id:'b1e',name:'انضباط مميز',value:1}
       ]}
     ],
-    custom:[
-      {id:'cst1',name:'القراءة',max:10,base:'zero',mode:'increase',subs:[
-        {id:'cst1a',name:'ممتازة',value:2},
-        {id:'cst1b',name:'جيدة',value:1},
-        {id:'cst1c',name:'يحتاج إعادة',value:-0.5}
-      ]}
-    ]
+    custom:[]
   }
 };
 
@@ -952,7 +946,8 @@ function openManageItems(){
   <input class="field" id="subName" placeholder="مثال: نائم">
   <div class="label mt8">درجة البند</div><input class="field" id="subVal" type="number" step=".25" value="-1">
   <div class="small mt8">البند الفرعي يتكوّن فقط من الاسم والدرجة. «يحتاج متابعة» يحدد وقت تسجيل التقييم على الطالب نفسه.</div>
-  <button class="btn primary mt12" id="addSub" style="width:100%">إضافة</button>`);
+  <button class="btn primary mt12" id="addSub" style="width:100%">إضافة</button>
+  ${state.module.startsWith('custom:')?`<div class="hr"></div><button class="btn danger" id="deleteMainItem" style="width:100%">حذف البند الرئيسي</button>`:''}`);
   q('#miClose',sheet).onclick=()=>{closeSheet();renderFollowup()};
   q('#editMainMode',sheet).value=itemMode(main);
   q('#saveMainMax',sheet).onclick=()=>{
@@ -966,7 +961,21 @@ function openManageItems(){
     const name=q('#subName',sheet).value.trim(), val=Number(q('#subVal',sheet).value);
     if(!name||!Number.isFinite(val))return;
     main.subs.push({id:'sub'+Date.now(),name,value:val});state.selectedSub=main.subs.at(-1).id;closeSheet();renderFollowup();openManageItems();
-  }
+  };
+  const deleteMain=q('#deleteMainItem',sheet);
+  if(deleteMain)deleteMain.onclick=()=>{
+    openSheet(`<div class="h2">حذف البند الرئيسي</div>
+      <div class="notice dangernotice mt12">سيُحذف «${main.name}» وبنوده الفرعية من شاشة التحضير. سجل الأحداث السابق للطلاب يبقى محفوظًا.</div>
+      <div class="row mt16"><button class="btn soft" id="cancelDeleteMain">إلغاء</button><button class="btn danger" id="confirmDeleteMain" style="flex:1">حذف البند</button></div>`);
+    q('#cancelDeleteMain',sheet).onclick=()=>{closeSheet();renderFollowup();openManageItems()};
+    q('#confirmDeleteMain',sheet).onclick=()=>{
+      state.items.custom=state.items.custom.filter(x=>x.id!==main.id);
+      state.module='attendance';
+      state.selectedMain=null;state.selectedSub=null;state.bulkContext=null;
+      closeSheet();renderFollowup();
+      showToast('تم حذف البند الرئيسي.');
+    };
+  };
 }
 
 function openAddGrades(){
