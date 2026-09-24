@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.29</title>
+<title>ركّز — موقع تجريبي v0.30</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1079,6 +1079,93 @@ function openExternalReportByType(type,studentId){
   if(type==='remedial')return openRemedialPlan(studentId);
   if(type==='evidence')return openExecutionEvidence(studentId);
   if(type==='referral')return openStudentReferral(studentId);
+}
+
+
+function studentSmartContext(studentId){
+  if(!studentId)return null;
+  const r=reportStats(studentId), st=r.st, c=state.classes.find(x=>x.id===st?.classId);
+  const events=state.events.filter(e=>e.studentId===studentId);
+  const recent=events.filter(e=>e.date>=new Date(dateParts(state.date).getTime()-6*86400000).toISOString().slice(0,10));
+  const positives=recent.filter(e=>Number(e.value)>0).map(e=>e.label).filter(Boolean);
+  const negatives=recent.filter(e=>Number(e.value)<0).map(e=>e.label).filter(Boolean);
+  const openFollow=events.filter(e=>e.follow&&!e.resolved);
+  const notes=events.filter(e=>e.module==='note').slice(-6).map(e=>e.label).filter(Boolean);
+  const behaviorMain=state.items.behavior?.[0];
+  const behaviorEvents=behaviorMain?events.filter(e=>e.mainId===behaviorMain.id):[];
+  const positiveBehavior=behaviorEvents.filter(e=>Number(e.value)>0).map(e=>e.label).filter(Boolean);
+  const negativeBehavior=behaviorEvents.filter(e=>Number(e.value)<0).map(e=>e.label).filter(Boolean);
+  return {r,st,c,events,recent,positives,negatives,openFollow,notes,positiveBehavior,negativeBehavior};
+}
+function smartTextList(arr,fallback){
+  const u=[...new Set((arr||[]).filter(Boolean))];
+  return u.length?u.join('، '):(fallback||'');
+}
+function reportFormBase(studentId,title,subtitle){
+  const ctx=studentSmartContext(studentId), st=ctx?.st, c=ctx?.c;
+  return {ctx,st,c,html:'<div class="row between"><div><div class="h2">'+title+'</div><div class="small mt8">'+subtitle+'</div></div><button class="iconbtn" id="smartReportClose">×</button></div>'
+    +'<div class="form-section"><div class="form-section-title">بيانات الطالب</div><div class="grid2"><div><div class="label">اسم الطالب</div><input class="field" id="srName" value="'+(st?st.name:'')+'" placeholder="اسم الطالب"></div><div><div class="label">الصف</div><input class="field" id="srGrade" value="'+(c?c.grade:'')+'" placeholder="الصف"></div></div><div class="label mt8">الفصل</div><input class="field" id="srClass" value="'+(c?c.name:'')+'" placeholder="الفصل أو الشعبة"></div>'};
+}
+function wireSmartClose(){const x=q('#smartReportClose',sheet);if(x)x.onclick=closeSheet}
+function smartPrintCommon(studentId,title,bodyBuilder){
+  const name=q('#srName',sheet)?.value.trim()||'',grade=q('#srGrade',sheet)?.value.trim()||'',className=q('#srClass',sheet)?.value.trim()||'';
+  if(!name){showToast('اكتب اسم الطالب أولًا.');return}
+  openSignatureStep(studentId,'smart',action=>{
+    if(action==='back'){showToast('ارجع للتقرير من قسم التقارير.');closeSheet();return}
+    openPrintWindow(title,name,{grade,name:className,subject:''},bodyBuilder(),state.reportSignatures,[]);
+    closeSheet();
+  });
+}
+function openSmartProgressReport(studentId){
+  const base=reportFormBase(studentId,'تقرير أداء شامل','تقرير ذكي يجمع بيانات الطالب الأكاديمية والسلوكية والحضور في صفحة واحدة.'), ctx=base.ctx;
+  const r=ctx?.r;
+  openReportSheet(base.html
+    +(studentId?'<div class="smart-strip mt12"><span>تمت تعبئة التقرير تلقائيًا من سجل الطالب.</span><button id="refreshProgressSmart">إعادة تعبئة ذكية</button></div>':'<div class="notice mt12">طالب خارجي: أدخل الملخص يدويًا، ويمكنك تعديل كل الحقول.</div>')
+    +'<div class="form-section"><div class="form-section-title">الملخص التنفيذي</div><textarea class="field" id="spSummary"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">نقاط القوة</div><textarea class="field" id="spStrengths"></textarea><div class="label mt8">جوانب تحتاج متابعة</div><textarea class="field" id="spNeeds"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">توصية المعلم</div><textarea class="field" id="spRec"></textarea></div>'
+    +'<button class="btn primary mt16" id="spPrint" style="width:100%">معاينة وطباعة</button>');
+  wireSmartClose();
+  function fill(){
+    if(!ctx)return;
+    const best=ctx.r.itemRows.slice().sort((a,b)=>b.pct-a.pct).slice(0,2).map(x=>x.name+' '+x.pct+'%');
+    const low=ctx.r.itemRows.filter(x=>x.pct<60).map(x=>x.name);
+    q('#spSummary',sheet).value='مؤشر الأداء '+(ctx.st.perf||0)+'/100، ونسبة الحضور '+ctx.r.attendancePct+'%، ومتوسط الاختبارات '+ctx.r.testPct+'%.';
+    q('#spStrengths',sheet).value=smartTextList(best.concat(ctx.positives),'لا توجد نقاط قوة بارزة مسجلة بعد.');
+    q('#spNeeds',sheet).value=smartTextList(low.concat(ctx.negatives,ctx.openFollow.map(e=>e.label)),'لا توجد جوانب حرجة مسجلة حاليًا.');
+    q('#spRec',sheet).value=low.length||ctx.openFollow.length?'متابعة الجوانب المحددة بخطة قصيرة، ثم إعادة قياس ومقارنة التحسن.':'الاستمرار في التعزيز والمحافظة على مستوى الأداء الحالي.';
+  }
+  fill(); if(q('#refreshProgressSmart',sheet))q('#refreshProgressSmart',sheet).onclick=fill;
+  q('#spPrint',sheet).onclick=()=>smartPrintCommon(studentId,'تقرير أداء شامل',()=>'<div class="panel"><div class="section-title">الملخص التنفيذي</div><div>'+q('#spSummary',sheet).value+'</div></div><div class="grid2 mt12"><div class="panel"><div class="section-title">نقاط القوة</div><div>'+q('#spStrengths',sheet).value+'</div></div><div class="panel"><div class="section-title">جوانب تحتاج متابعة</div><div>'+q('#spNeeds',sheet).value+'</div></div></div><div class="panel mt12"><div class="section-title">توصية المعلم</div><div>'+q('#spRec',sheet).value+'</div></div>'+(studentId?reportBody(studentId,'analysis'):''));
+}
+function openWeeklyFollowReport(studentId){
+  const base=reportFormBase(studentId,'متابعة أسبوعية','ملخص أسبوعي ذكي قابل للتعديل.'),ctx=base.ctx;
+  openReportSheet(base.html+(studentId?'<div class="smart-strip mt12"><span>مبني على أحداث آخر 7 أيام.</span><button id="refreshWeeklySmart">تعبئة ذكية</button></div>':'')
+    +'<div class="form-section"><div class="form-section-title">أبرز الإيجابيات</div><textarea class="field" id="wkPos"></textarea><div class="label mt8">ما يحتاج متابعة</div><textarea class="field" id="wkNeg"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">إجراء الأسبوع القادم</div><textarea class="field" id="wkNext"></textarea></div><button class="btn primary mt16" id="wkPrint" style="width:100%">معاينة وطباعة</button>');
+  wireSmartClose();
+  function fill(){if(!ctx)return;q('#wkPos',sheet).value=smartTextList(ctx.positives,'لا توجد أحداث إيجابية مسجلة هذا الأسبوع.');q('#wkNeg',sheet).value=smartTextList(ctx.negatives.concat(ctx.openFollow.map(e=>e.label)),'لا توجد حالات تحتاج متابعة.');q('#wkNext',sheet).value=ctx.openFollow.length?'متابعة التنبيهات المفتوحة، وتعزيز التحسن في الحصة القادمة.':'الاستمرار في التعزيز والمتابعة الدورية.'}
+  fill();if(q('#refreshWeeklySmart',sheet))q('#refreshWeeklySmart',sheet).onclick=fill;
+  q('#wkPrint',sheet).onclick=()=>smartPrintCommon(studentId,'متابعة أسبوعية',()=>'<div class="panel"><div class="section-title">أبرز الإيجابيات</div><div>'+q('#wkPos',sheet).value+'</div></div><div class="panel mt12"><div class="section-title">ما يحتاج متابعة</div><div>'+q('#wkNeg',sheet).value+'</div></div><div class="panel mt12"><div class="section-title">إجراء الأسبوع القادم</div><div>'+q('#wkNext',sheet).value+'</div></div>');
+}
+function openBehaviorReport(studentId){
+  const base=reportFormBase(studentId,'تقرير سلوك وانضباط','يجمع الحالات السلوكية المسجلة ويقترح خلاصة مهنية.'),ctx=base.ctx;
+  openReportSheet(base.html+(studentId?'<div class="smart-strip mt12"><span>تم تحليل السجل السلوكي تلقائيًا.</span><button id="refreshBehaviorSmart">تعبئة ذكية</button></div>':'')
+    +'<div class="form-section"><div class="form-section-title">السلوكيات الإيجابية</div><textarea class="field" id="bhPos"></textarea><div class="label mt8">السلوكيات التي تحتاج معالجة</div><textarea class="field" id="bhNeg"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">الإجراء المقترح</div><textarea class="field" id="bhAction"></textarea></div><button class="btn primary mt16" id="bhPrint" style="width:100%">معاينة وطباعة</button>');
+  wireSmartClose();
+  function fill(){if(!ctx)return;q('#bhPos',sheet).value=smartTextList(ctx.positiveBehavior,'لا توجد حالات إيجابية مسجلة بعد.');q('#bhNeg',sheet).value=smartTextList(ctx.negativeBehavior,'لا توجد مخالفات سلوكية مسجلة.');q('#bhAction',sheet).value=ctx.negativeBehavior.length?'تعزيز البدائل الإيجابية، ومتابعة السلوك في الحصص القادمة، وتوثيق أي تحسن.':'الاستمرار في التعزيز الإيجابي والمحافظة على الانضباط.'}
+  fill();if(q('#refreshBehaviorSmart',sheet))q('#refreshBehaviorSmart',sheet).onclick=fill;
+  q('#bhPrint',sheet).onclick=()=>smartPrintCommon(studentId,'تقرير سلوك وانضباط',()=>'<div class="grid2"><div class="panel"><div class="section-title">إيجابيات</div><div>'+q('#bhPos',sheet).value+'</div></div><div class="panel"><div class="section-title">يحتاج معالجة</div><div>'+q('#bhNeg',sheet).value+'</div></div></div><div class="panel mt12"><div class="section-title">الإجراء المقترح</div><div>'+q('#bhAction',sheet).value+'</div></div>');
+}
+function openParentContactReport(studentId){
+  const base=reportFormBase(studentId,'تواصل ولي أمر','نموذج يوثق سبب التواصل وما تم الاتفاق عليه.'),ctx=base.ctx;
+  openReportSheet(base.html+(studentId?'<div class="smart-strip mt12"><span>يمكن اقتراح سبب التواصل من التنبيهات والملاحظات.</span><button id="refreshParentSmart">تعبئة ذكية</button></div>':'')
+    +'<div class="form-section"><div class="form-section-title">سبب التواصل</div><textarea class="field" id="pcReason"></textarea><div class="label mt8">ملخص ما تم</div><textarea class="field" id="pcDone"></textarea><div class="label mt8">الإجراء المتفق عليه</div><textarea class="field" id="pcNext"></textarea></div><button class="btn primary mt16" id="pcPrint" style="width:100%">معاينة وطباعة</button>');
+  wireSmartClose();
+  function fill(){if(!ctx)return;q('#pcReason',sheet).value=smartTextList(ctx.openFollow.map(e=>e.label).concat(ctx.negatives,ctx.notes),'متابعة مستوى الطالب بشكل دوري.');q('#pcDone',sheet).value='تم إطلاع ولي الأمر على مستوى الطالب ومناقشة أبرز الملاحظات المسجلة.';q('#pcNext',sheet).value='متابعة التحسن خلال الفترة القادمة والتواصل عند الحاجة.'}
+  fill();if(q('#refreshParentSmart',sheet))q('#refreshParentSmart',sheet).onclick=fill;
+  q('#pcPrint',sheet).onclick=()=>smartPrintCommon(studentId,'تواصل ولي أمر',()=>'<div class="panel"><div class="section-title">سبب التواصل</div><div>'+q('#pcReason',sheet).value+'</div></div><div class="panel mt12"><div class="section-title">ملخص ما تم</div><div>'+q('#pcDone',sheet).value+'</div></div><div class="panel mt12"><div class="section-title">الإجراء المتفق عليه</div><div>'+q('#pcNext',sheet).value+'</div></div>');
 }
 
 function smartPlanSuggestions(studentId){
