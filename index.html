@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.10</title>
+<title>ركّز — موقع تجريبي v0.11</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -318,40 +318,41 @@ const state={
   attendance:{},
   attendanceGrade:{max:10,mode:'decrease',present:0,absent:-1,late:-0.5,excused:0},
   events:[],
+  evalFollow:{},
   codeHistory:[
     {studentId:'s1',oldCode:null,newCode:'R27',date:'2026-09-01',type:'generated'}
   ],
   items:{
     participation:[
       {id:'p1',name:'المشاركة الصفية',max:10,base:'zero',mode:'increase',subs:[
-        {id:'p1a',name:'إجابة شفهية',value:1,follow:false},
-        {id:'p1b',name:'حل على السبورة',value:2,follow:false},
-        {id:'p1c',name:'مشاركة مميزة',value:3,follow:false},
-        {id:'p1d',name:'عدم تفاعل',value:-1,follow:true}
+        {id:'p1a',name:'إجابة شفهية',value:1},
+        {id:'p1b',name:'حل على السبورة',value:2},
+        {id:'p1c',name:'مشاركة مميزة',value:3},
+        {id:'p1d',name:'عدم تفاعل',value:-1}
       ]}
     ],
     homework:[
       {id:'h1',name:'الواجب',max:10,base:'zero',mode:'increase',subs:[
-        {id:'h1a',name:'كامل',value:2,follow:false},
-        {id:'h1b',name:'ناقص',value:-1,follow:true},
-        {id:'h1c',name:'لم يحضر',value:-2,follow:true},
-        {id:'h1d',name:'تعويض الواجب',value:2,follow:false}
+        {id:'h1a',name:'كامل',value:2},
+        {id:'h1b',name:'ناقص',value:-1},
+        {id:'h1c',name:'لم يحضر',value:-2},
+        {id:'h1d',name:'تعويض الواجب',value:2}
       ]}
     ],
     behavior:[
       {id:'b1',name:'السلوك',max:10,base:'full',mode:'decrease',subs:[
-        {id:'b1a',name:'مشاغب',value:-1,follow:true},
-        {id:'b1b',name:'نائم',value:-2,follow:true},
-        {id:'b1c',name:'حديث جانبي',value:-0.5,follow:true},
-        {id:'b1d',name:'تعاون ممتاز',value:1,follow:false},
-        {id:'b1e',name:'انضباط مميز',value:1,follow:false}
+        {id:'b1a',name:'مشاغب',value:-1},
+        {id:'b1b',name:'نائم',value:-2},
+        {id:'b1c',name:'حديث جانبي',value:-0.5},
+        {id:'b1d',name:'تعاون ممتاز',value:1},
+        {id:'b1e',name:'انضباط مميز',value:1}
       ]}
     ],
     custom:[
       {id:'cst1',name:'القراءة',max:10,base:'zero',mode:'increase',subs:[
-        {id:'cst1a',name:'ممتازة',value:2,follow:false},
-        {id:'cst1b',name:'جيدة',value:1,follow:false},
-        {id:'cst1c',name:'يحتاج إعادة',value:-0.5,follow:true}
+        {id:'cst1a',name:'ممتازة',value:2},
+        {id:'cst1b',name:'جيدة',value:1},
+        {id:'cst1c',name:'يحتاج إعادة',value:-0.5}
       ]}
     ]
   }
@@ -449,7 +450,7 @@ function setAtt(sid,val){
   const negative=(val==='absent'||val==='late'||effect<0);
   if(negative){
     if(ev){ev.label=attLabels[val];ev.value=effect;ev.follow=true;ev.resolved=false;ev.updatedAt=new Date().toISOString()}
-    else state.events.push({id:'e'+Date.now()+Math.random(),eventKey:key,studentId:sid,date:state.date,module:'attendance',label:attLabels[val],value:effect,follow:true,resolved:false,createdAt:new Date().toISOString()});
+    else state.events.push({id:'e'+Date.now()+Math.random(),eventKey:key,studentId:sid,date:state.date,module:'attendance',label:attLabels[val],value:effect,resolved:false,createdAt:new Date().toISOString()});
   }else if(ev){ev.resolved=true;ev.updatedAt=new Date().toISOString()}
   const after=attendanceScoreFor(sid);
   if(after===before&&effect<0&&after===0)showToast(`لم يُطبّق الخصم ${effect} لأن الدرجة عند الحد الأدنى 0/${g.max}. لا يوجد رصيد سالب مؤجل.`);
@@ -504,11 +505,14 @@ function followupAllocatedTotal(){
 }
 function looksNegative(sub){
   const name=String(sub?.name||'');
-  return Number(sub?.value||0)<0 || !!sub?.follow || /(لم |ناقص|غياب|غائب|متأخر|مشاغب|نائم|عدم|نسي|مفقود|يحتاج|لم يحضر|غير مكتمل)/.test(name);
+  return Number(sub?.value||0)<0 || /(لم |ناقص|غياب|غائب|متأخر|مشاغب|نائم|عدم|نسي|مفقود|يحتاج|لم يحضر|غير مكتمل)/.test(name);
 }
+function evalFollowKey(studentId,main,sub){return [state.date,state.classId,studentId,main?.id||'',sub?.id||''].join('|')}
 function addEvent(studentId,main,sub){
-  const before=scoreFor(studentId,main), autoFollow=looksNegative(sub);
-  state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:autoFollow,resolved:false,createdAt:new Date().toISOString()});
+  const key=evalFollowKey(studentId,main,sub), manualFollow=!!state.evalFollow[key];
+  const before=scoreFor(studentId,main), autoFollow=looksNegative(sub), needsFollow=autoFollow||manualFollow;
+  state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,createdAt:new Date().toISOString()});
+  delete state.evalFollow[key];
   const after=scoreFor(studentId,main), raw=Number(sub.value||0), actual=after-before;
   if(autoFollow)showToast('تم إنشاء تنبيه متابعة للطالب تلقائيًا بسبب الحدث السلبي.');
   if(raw<0&&actual===0&&after===0)showToast(`الدرجة عند 0/${main.max}: لم يُطبّق الخصم ${raw} ولن يُحفظ كرصد سالب مؤجل.`);
@@ -615,12 +619,13 @@ function renderStudents(){
         <span class="scorepill">${score}/${main?.max||0}</span>
       </div>
       <div class="actionline">
-        ${sub?`<button class="${sub.value<0?'neg':'pos'}" data-apply="${s.id}">${sub.name} ${sub.value>0?'+':''}${sub.value}</button>`:''}
+        ${sub?`<button class="${sub.value<0?'neg':'pos'}" data-apply="${s.id}">${sub.name} ${sub.value>0?'+':''}${sub.value}</button><button class="${state.evalFollow[evalFollowKey(s.id,main,sub)]?'pos':''}" data-follow-eval="${s.id}">${state.evalFollow[evalFollowKey(s.id,main,sub)]?'✓ متابعة':'متابعة'}</button>`:''}
         <button data-card="${s.id}">بطاقة الطالب</button><button data-note="${s.id}">+ ملاحظة</button>
       </div>
     </div>`
   }).join('');
   qa('[data-att]',box).forEach(b=>b.onclick=()=>cycleAtt(b.dataset.att));
+  qa('[data-follow-eval]',box).forEach(b=>b.onclick=()=>{if(!main||!sub)return;const key=evalFollowKey(b.dataset.followEval,main,sub);state.evalFollow[key]=!state.evalFollow[key];renderStudents()});
   qa('[data-apply]',box).forEach(b=>b.onclick=()=>{if(main&&sub)addEvent(b.dataset.apply,main,sub)});
   qa('[data-card]',box).forEach(b=>b.onclick=()=>openStudentCard(b.dataset.card));
   qa('[data-note]',box).forEach(b=>b.onclick=()=>openNote(b.dataset.note));
@@ -685,12 +690,12 @@ function openManageItems(){
     <div class="small mt8">تغيير الطريقة يعيد احتساب السجل نفسه من البداية؛ لا يحذف الأحداث.</div>
   </div>
   <div class="section-title mt16">البنود الفرعية</div>
-  <div id="subManage">${main.subs.length?main.subs.map(s=>`<div class="panel mt8 row between"><div><strong>${s.name}</strong><div class="small">${s.value>0?'+':''}${s.value} ${s.follow?'· يحتاج متابعة':''}</div></div><button class="btn danger" style="min-height:36px" data-del-sub="${s.id}">حذف</button></div>`).join(''):'<div class="small">لا توجد بنود فرعية. يمكنك إضافة بنود موجبة أو سالبة حسب طريقة المعلم.</div>'}</div>
+  <div id="subManage">${main.subs.length?main.subs.map(s=>`<div class="panel mt8 row between"><div><strong>${s.name}</strong><div class="small">${s.value>0?'+':''}${s.value}</div></div><button class="btn danger" style="min-height:36px" data-del-sub="${s.id}">حذف</button></div>`).join(''):'<div class="small">لا توجد بنود فرعية. يمكنك إضافة بنود موجبة أو سالبة حسب طريقة المعلم.</div>'}</div>
   <div class="hr"></div>
   <div class="section-title">+ بند فرعي</div>
   <input class="field" id="subName" placeholder="مثال: نائم">
-  <div class="grid2 mt8"><input class="field" id="subVal" type="number" step=".25" value="-1"><select class="field" id="subFollow"><option value="no">تلقائي</option><option value="yes">متابعة حتى لو كان موجبًا</option></select></div>
-  <div class="small mt8">أي خصم أو وصف سلبي واضح ينشئ تنبيه متابعة تلقائيًا؛ لا تحتاج لتفعيل التنبيه يدويًا.</div>
+  <div class="label mt8">درجة البند</div><input class="field" id="subVal" type="number" step=".25" value="-1">
+  <div class="small mt8">البند الفرعي يتكوّن فقط من الاسم والدرجة. «يحتاج متابعة» يحدد وقت تسجيل التقييم على الطالب نفسه.</div>
   <button class="btn primary mt12" id="addSub" style="width:100%">إضافة</button>`);
   q('#miClose',sheet).onclick=()=>{closeSheet();renderFollowup()};
   q('#editMainMode',sheet).value=itemMode(main);
@@ -702,9 +707,9 @@ function openManageItems(){
   };
   qa('[data-del-sub]',sheet).forEach(b=>b.onclick=()=>{main.subs=main.subs.filter(s=>s.id!==b.dataset.delSub);closeSheet();openManageItems()});
   q('#addSub',sheet).onclick=()=>{
-    const name=q('#subName',sheet).value.trim(), val=Number(q('#subVal',sheet).value), follow=q('#subFollow',sheet).value==='yes';
+    const name=q('#subName',sheet).value.trim(), val=Number(q('#subVal',sheet).value);
     if(!name||!Number.isFinite(val))return;
-    main.subs.push({id:'sub'+Date.now(),name,value:val,follow});state.selectedSub=main.subs.at(-1).id;closeSheet();renderFollowup();openManageItems();
+    main.subs.push({id:'sub'+Date.now(),name,value:val});state.selectedSub=main.subs.at(-1).id;closeSheet();renderFollowup();openManageItems();
   }
 }
 
@@ -735,7 +740,7 @@ function simulateImport(source,meta){
   <div class="row mt16"><button class="btn soft" id="backImport">رجوع</button><button class="btn primary" id="acceptImport" style="flex:1">اعتماد المطابق فقط</button></div>`;
   q('#backImport',sheet).onclick=openAddGrades;
   q('#acceptImport',sheet).onclick=()=>{
-    currentStudents().forEach((s,i)=>{if(i!==2)state.events.push({id:'e'+Date.now()+i,studentId:s.id,date:state.date,module:'tests',label:meta.name,value:Math.min(meta.max,Math.max(0,meta.max-(i%4)*1.5)),max:meta.max,follow:false})});
+    currentStudents().forEach((s,i)=>{if(i!==2)state.events.push({id:'e'+Date.now()+i,studentId:s.id,date:state.date,module:'tests',label:meta.name,value:Math.min(meta.max,Math.max(0,meta.max-(i%4)*1.5)),max:meta.max})});
     closeSheet();renderStudents();
   }
 }
@@ -747,14 +752,14 @@ function openManualGrades(meta){
     let bad=false;
     qa('[data-manual-grade]',sheet).forEach(inp=>{const v=inp.value===''?null:Number(inp.value);if(v!=null&&(v<0||v>meta.max||!Number.isFinite(v)))bad=true});
     if(bad){alert('يوجد رقم خارج الدرجة النهائية المحددة.');return}
-    qa('[data-manual-grade]',sheet).forEach(inp=>{if(inp.value!=='')state.events.push({id:'e'+Date.now()+inp.dataset.manualGrade,studentId:inp.dataset.manualGrade,date:state.date,module:'tests',label:meta.name,value:Number(inp.value),max:meta.max,follow:false})});
+    qa('[data-manual-grade]',sheet).forEach(inp=>{if(inp.value!=='')state.events.push({id:'e'+Date.now()+inp.dataset.manualGrade,studentId:inp.dataset.manualGrade,date:state.date,module:'tests',label:meta.name,value:Number(inp.value),max:meta.max})});
     closeSheet();renderStudents();
   }
 }
 function openManualGradeOne(id){
   const s=state.students.find(x=>x.id===id);
   openSheet(`<div class="h2">إدخال درجة — ${s.name}</div><div class="grid2 mt12"><div><div class="label">اسم الاختبار</div><input class="field" id="oneName" value="اختبار قصير"></div><div><div class="label">الدرجة النهائية</div><input class="field" id="oneMax" type="number" value="20"></div></div><div class="label mt12">درجة الطالب</div><input class="field" id="oneVal" type="number" step=".25"><button class="btn primary mt16" id="saveOne" style="width:100%">حفظ</button>`);
-  q('#saveOne',sheet).onclick=()=>{const max=Number(q('#oneMax',sheet).value),val=Number(q('#oneVal',sheet).value);if(!Number.isFinite(max)||!Number.isFinite(val)||val<0||val>max)return;state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'tests',label:q('#oneName',sheet).value||'اختبار',value:val,max,follow:false});closeSheet();renderStudents()}
+  q('#saveOne',sheet).onclick=()=>{const max=Number(q('#oneMax',sheet).value),val=Number(q('#oneVal',sheet).value);if(!Number.isFinite(max)||!Number.isFinite(val)||val<0||val>max)return;state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'tests',label:q('#oneName',sheet).value||'اختبار',value:val,max});closeSheet();renderStudents()}
 }
 
 function renderClasses(){
