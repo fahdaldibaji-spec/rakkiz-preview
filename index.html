@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.25</title>
+<title>ركّز — موقع تجريبي v0.26</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -363,11 +363,11 @@ const state={
     {id:'c3',grade:'ثاني متوسط',name:'2/أ',subject:'العلوم'}
   ],
   schedule:[
-    {id:'l1',day:4,start:'08:00',end:'08:45',classId:'c1',subject:'العلوم'},
-    {id:'l2',day:4,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'},
-    {id:'l3',day:4,start:'10:00',end:'10:45',classId:'c3',subject:'العلوم'},
-    {id:'l4',day:0,start:'08:00',end:'08:45',classId:'c1',subject:'العلوم'},
-    {id:'l5',day:1,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'}
+    {id:'l1',day:4,period:1,start:'08:00',end:'08:45',classId:'c1',subject:'العلوم'},
+    {id:'l2',day:4,period:2,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'},
+    {id:'l3',day:4,period:3,start:'10:00',end:'10:45',classId:'c3',subject:'العلوم'},
+    {id:'l4',day:0,period:1,start:'08:00',end:'08:45',classId:'c1',subject:'العلوم'},
+    {id:'l5',day:1,period:2,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'}
   ],
   scheduleSettings:{notify:false,before:5},
   attendance:{},
@@ -421,6 +421,9 @@ function showToast(msg,kind='warn'){const t=q('#toast');if(!t)return;t.textConte
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeSheet()});
 
 const dayNames=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const periodNames={1:'الأولى',2:'الثانية',3:'الثالثة',4:'الرابعة',5:'الخامسة',6:'السادسة',7:'السابعة',8:'الثامنة'};
+function periodLabel(n){return n?'الحصة '+(periodNames[n]||n):'الحصة'}
+function periodOptions(selected=1){return Object.entries(periodNames).map(([n,label])=>`<option value="${n}" ${Number(selected)===Number(n)?'selected':''}>الحصة ${label}</option>`).join('')}
 function minutesOf(t){const [h,m]=t.split(':').map(Number);return h*60+m}
 function saveSchedule(){localStorage.setItem('rakkiz_schedule_v1',JSON.stringify({schedule:state.schedule,settings:state.scheduleSettings}))}
 function loadSchedule(){try{const x=JSON.parse(localStorage.getItem('rakkiz_schedule_v1')||'null');if(x?.schedule)state.schedule=x.schedule;if(x?.settings)state.scheduleSettings=x.settings}catch{}}
@@ -437,7 +440,7 @@ function lessonClassLabel(l){const c=state.classes.find(x=>x.id===l.classId);ret
 function renderLessonHero(){
   const ctx=lessonContext(),st=q('#lessonStatus'),tm=q('#lessonTime'),cl=q('#lessonClass'),su=q('#lessonSubject'),open=q('#openLessonBtn');if(!st)return;
   if(!ctx.lesson){st.textContent='لا توجد حصص';tm.textContent='—';cl.textContent='أضف جدولك';su.textContent='ليظهر الفصل المناسب تلقائيًا عند وقت الحصة';open.disabled=true;return}
-  const l=ctx.lesson;open.disabled=false;st.textContent=ctx.kind==='current'?'الحصة الحالية':ctx.kind==='next'?'الحصة القادمة':`الحصة القادمة · ${dayNames[l.day]}`;tm.textContent=`${l.start} — ${l.end}`;cl.textContent=lessonClassLabel(l);su.textContent=l.subject||state.classes.find(x=>x.id===l.classId)?.subject||'';open.dataset.classId=l.classId;
+  const l=ctx.lesson;open.disabled=false;st.textContent=(ctx.kind==='current'?'الحصة الحالية':ctx.kind==='next'?'الحصة القادمة':`الحصة القادمة · ${dayNames[l.day]}`)+' · '+periodLabel(l.period);tm.textContent=`${l.start} — ${l.end}`;cl.textContent=lessonClassLabel(l);su.textContent=l.subject||state.classes.find(x=>x.id===l.classId)?.subject||'';open.dataset.classId=l.classId;
 }
 function maybeNotifyLesson(){
   if(!state.scheduleSettings.notify||typeof Notification==='undefined'||Notification.permission!=='granted')return;
@@ -445,19 +448,19 @@ function maybeNotifyLesson(){
   state.schedule.filter(x=>x.day===day).forEach(l=>{const start=minutesOf(l.start),diff=start-cur,before=Number(state.scheduleSettings.before)||0;const inWindow=before===0?(diff<=0&&diff>-1):(diff>=0&&diff<=before);const key=`${dateKey}|${l.id}|${before}`;if(inWindow&&!window.__rakkizNotified[key]){window.__rakkizNotified[key]=1;new Notification('ركّز — تذكير الحصة',{body:`${lessonClassLabel(l)} · ${l.subject} · ${l.start}`})}})
 }
 function openScheduleManager(){
-  const rows=state.schedule.slice().sort((a,b)=>a.day-b.day||minutesOf(a.start)-minutesOf(b.start)).map(l=>`<div class="schedule-row"><div class="row between"><div><div class="sname">${dayNames[l.day]} · ${lessonClassLabel(l)}</div><div class="meta">${l.subject}</div></div><span class="timebadge">${l.start}–${l.end}</span></div><div class="actionline"><button data-edit-lesson="${l.id}">تعديل</button><button class="neg" data-delete-lesson="${l.id}">حذف</button></div></div>`).join('');
+  const rows=state.schedule.slice().sort((a,b)=>a.day-b.day||minutesOf(a.start)-minutesOf(b.start)).map(l=>`<div class="schedule-row"><div class="row between"><div><div class="sname">${dayNames[l.day]} · ${periodLabel(l.period)} · ${lessonClassLabel(l)}</div><div class="meta">${l.subject}</div></div><span class="timebadge">${l.start}–${l.end}</span></div><div class="actionline"><button data-edit-lesson="${l.id}">تعديل</button><button class="neg" data-delete-lesson="${l.id}">حذف</button></div></div>`).join('');
   openSheet(`<div class="row between"><div><div class="h2">الجدول والحصص</div><div class="small">أضف الجدول مرة واحدة، وبعدها تظهر الحصة المناسبة تلقائيًا.</div></div><button class="iconbtn" id="scheduleClose">×</button></div>
   <div class="panel mt16"><div class="row between"><div><strong>تنبيه الحصة</strong><div class="small">اختياري، ويمكن إيقافه في أي وقت.</div></div><button class="switch ${state.scheduleSettings.notify?'on':''}" id="notifyToggle" aria-label="تنبيه الحصة"></button></div><div class="label mt12">وقت التنبيه</div><select class="field" id="notifyBefore"><option value="0">عند بداية الحصة</option><option value="5">قبل 5 دقائق</option><option value="10">قبل 10 دقائق</option><option value="15">قبل 15 دقيقة</option></select><div class="small mt8" id="notifyHint"></div></div>
-  <div class="panel mt12"><div class="section-title">إضافة حصة</div><div class="grid2"><select class="field" id="lessonDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="lessonClassId">${state.classes.map(c=>`<option value="${c.id}">${c.grade} — ${c.name}</option>`).join('')}</select></div><div class="grid2 mt8"><input class="field" id="lessonStart" type="time" value="08:00"><input class="field" id="lessonEnd" type="time" value="08:45"></div><div class="label mt8">المادة</div><input class="field" id="lessonSubjectInput" value="العلوم"><button class="btn primary mt12" id="saveLesson" style="width:100%">إضافة الحصة</button></div>
+  <div class="panel mt12"><div class="section-title">إضافة حصة</div><div class="grid2"><select class="field" id="lessonDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="lessonPeriod">${periodOptions(1)}</select></div><div class="label mt8">الفصل</div><select class="field" id="lessonClassId">${state.classes.map(c=>`<option value="${c.id}">${c.grade} — ${c.name}</option>`).join('')}</select><div class="grid2 mt8"><input class="field" id="lessonStart" type="time" value="08:00"><input class="field" id="lessonEnd" type="time" value="08:45"></div><div class="label mt8">المادة</div><input class="field" id="lessonSubjectInput" value="العلوم"><button class="btn primary mt12" id="saveLesson" style="width:100%">إضافة الحصة</button></div>
   <div class="section-title mt16">جدولك الحالي</div><div class="schedule-list">${rows||'<div class="small">لا توجد حصص بعد.</div>'}</div>`);
   q('#scheduleClose',sheet).onclick=closeSheet;q('#notifyBefore',sheet).value=String(state.scheduleSettings.before);
   q('#notifyBefore',sheet).onchange=e=>{state.scheduleSettings.before=Number(e.target.value);saveSchedule()};
   q('#notifyToggle',sheet).onclick=async()=>{const hint=q('#notifyHint',sheet);if(state.scheduleSettings.notify){state.scheduleSettings.notify=false;saveSchedule();q('#notifyToggle',sheet).classList.remove('on');hint.textContent='تم إيقاف التنبيه.';return}if(typeof Notification==='undefined'){hint.textContent='الإشعارات غير مدعومة في هذا المتصفح.';return}let perm=Notification.permission;if(perm==='default')perm=await Notification.requestPermission();if(perm==='granted'){state.scheduleSettings.notify=true;saveSchedule();q('#notifyToggle',sheet).classList.add('on');hint.textContent='تم تفعيل تنبيه الحصص.'}else hint.textContent='يلزم السماح بالإشعارات من المتصفح أو الجهاز.'};
-  q('#saveLesson',sheet).onclick=()=>{const day=Number(q('#lessonDay',sheet).value),classId=q('#lessonClassId',sheet).value,start=q('#lessonStart',sheet).value,end=q('#lessonEnd',sheet).value,subject=q('#lessonSubjectInput',sheet).value.trim();if(!start||!end||minutesOf(end)<=minutesOf(start)||!subject)return;state.schedule.push({id:'l'+Date.now(),day,start,end,classId,subject});saveSchedule();closeSheet();renderLessonHero();openScheduleManager()};
+  q('#saveLesson',sheet).onclick=()=>{const day=Number(q('#lessonDay',sheet).value),period=Number(q('#lessonPeriod',sheet).value),classId=q('#lessonClassId',sheet).value,start=q('#lessonStart',sheet).value,end=q('#lessonEnd',sheet).value,subject=q('#lessonSubjectInput',sheet).value.trim();if(!start||!end||minutesOf(end)<=minutesOf(start)||!subject)return;state.schedule.push({id:'l'+Date.now(),day,period,start,end,classId,subject});saveSchedule();closeSheet();renderLessonHero();openScheduleManager()};
   qa('[data-delete-lesson]',sheet).forEach(b=>b.onclick=()=>{state.schedule=state.schedule.filter(x=>x.id!==b.dataset.deleteLesson);saveSchedule();closeSheet();renderLessonHero();openScheduleManager()});
   qa('[data-edit-lesson]',sheet).forEach(b=>b.onclick=()=>openEditLesson(b.dataset.editLesson));
 }
-function openEditLesson(id){const l=state.schedule.find(x=>x.id===id);if(!l)return;openSheet(`<div class="h2">تعديل الحصة</div><div class="grid2 mt12"><select class="field" id="eDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="eClass">${state.classes.map(c=>`<option value="${c.id}">${c.grade} — ${c.name}</option>`).join('')}</select></div><div class="grid2 mt8"><input class="field" id="eStart" type="time" value="${l.start}"><input class="field" id="eEnd" type="time" value="${l.end}"></div><input class="field mt8" id="eSubject" value="${l.subject}"><div class="row mt16"><button class="btn soft" id="cancelEditLesson">إلغاء</button><button class="btn primary" id="saveEditLesson" style="flex:1">حفظ التعديل</button></div>`);q('#eDay',sheet).value=String(l.day);q('#eClass',sheet).value=l.classId;q('#cancelEditLesson',sheet).onclick=()=>{closeSheet();openScheduleManager()};q('#saveEditLesson',sheet).onclick=()=>{const start=q('#eStart',sheet).value,end=q('#eEnd',sheet).value;if(minutesOf(end)<=minutesOf(start))return;l.day=Number(q('#eDay',sheet).value);l.classId=q('#eClass',sheet).value;l.start=start;l.end=end;l.subject=q('#eSubject',sheet).value.trim()||'المادة';saveSchedule();closeSheet();renderLessonHero();openScheduleManager()}}
+function openEditLesson(id){const l=state.schedule.find(x=>x.id===id);if(!l)return;openSheet(`<div class="h2">تعديل الحصة</div><div class="grid2 mt12"><select class="field" id="eDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="ePeriod">${periodOptions(l.period||1)}</select></div><div class="label mt8">الفصل</div><select class="field" id="eClass">${state.classes.map(c=>`<option value="${c.id}">${c.grade} — ${c.name}</option>`).join('')}</select><div class="grid2 mt8"><input class="field" id="eStart" type="time" value="${l.start}"><input class="field" id="eEnd" type="time" value="${l.end}"></div><input class="field mt8" id="eSubject" value="${l.subject}"><div class="row mt16"><button class="btn soft" id="cancelEditLesson">إلغاء</button><button class="btn primary" id="saveEditLesson" style="flex:1">حفظ التعديل</button></div>`);q('#eDay',sheet).value=String(l.day);q('#eClass',sheet).value=l.classId;q('#cancelEditLesson',sheet).onclick=()=>{closeSheet();openScheduleManager()};q('#saveEditLesson',sheet).onclick=()=>{const start=q('#eStart',sheet).value,end=q('#eEnd',sheet).value;if(minutesOf(end)<=minutesOf(start))return;l.day=Number(q('#eDay',sheet).value);l.period=Number(q('#ePeriod',sheet).value);l.classId=q('#eClass',sheet).value;l.start=start;l.end=end;l.subject=q('#eSubject',sheet).value.trim()||'المادة';saveSchedule();closeSheet();renderLessonHero();openScheduleManager()}}
 
 function renderPrepareChooser(){
   const currentBox=q('#prepareCurrentLesson'), list=q('#prepareClasses');
@@ -466,7 +469,7 @@ function renderPrepareChooser(){
   if(ctx.lesson){
     const l=ctx.lesson;
     currentBox.innerHTML=`<div class="hero">
-      <div class="row between"><div style="font-size:12.5px;font-weight:800;opacity:.82">${ctx.kind==='current'?'الحصة الحالية':'الحصة القادمة'}</div><span class="timepill">${l.start} — ${l.end}</span></div>
+      <div class="row between"><div style="font-size:12.5px;font-weight:800;opacity:.82">${ctx.kind==='current'?'الحصة الحالية':'الحصة القادمة'} · ${periodLabel(l.period)}</div><span class="timepill">${l.start} — ${l.end}</span></div>
       <div style="font-family:'IBM Plex Sans Arabic';font-size:20px;font-weight:800;margin-top:4px">${lessonClassLabel(l)}</div>
       <div style="font-size:13px;opacity:.88;font-weight:700;margin-top:2px">${l.subject}</div>
       <button class="btn mt12" style="width:100%;background:#fff;color:var(--green)" data-prepare-class="${l.classId}">فتح هذا الفصل</button>
