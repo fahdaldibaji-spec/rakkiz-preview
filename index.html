@@ -292,12 +292,12 @@ const state={
   selectedMain:null,
   selectedSub:null,
   students:[
-    {id:'s1',name:'محمد أحمد',classId:'c1',code:'R27',perf:82},
-    {id:'s2',name:'أحمد علي',classId:'c1',code:'K14',perf:91},
-    {id:'s3',name:'خالد حسن',classId:'c1',code:'H08',perf:64},
-    {id:'s4',name:'عبدالله سالم',classId:'c1',code:'M22',perf:78},
-    {id:'s5',name:'سلمان يحيى',classId:'c1',code:'S31',perf:67},
-    {id:'s6',name:'مازن علي',classId:'c1',code:'A19',perf:88},
+    {id:'s1',name:'محمد أحمد',classId:'c1',code:'R27',nationalId:'10•••••431',noorStudentId:'N1001',source:'noor',perf:82},
+    {id:'s2',name:'أحمد علي',classId:'c1',code:'K14',nationalId:'10•••••982',noorStudentId:'N1002',source:'noor',perf:91},
+    {id:'s3',name:'خالد حسن',classId:'c1',code:'H08',nationalId:'10•••••126',noorStudentId:'N1003',source:'noor',perf:64},
+    {id:'s4',name:'عبدالله سالم',classId:'c1',code:'M22',nationalId:'10•••••754',noorStudentId:'N1004',source:'noor',perf:78},
+    {id:'s5',name:'سلمان يحيى',classId:'c1',code:'S31',nationalId:'10•••••603',noorStudentId:'N1005',source:'noor',perf:67},
+    {id:'s6',name:'مازن علي',classId:'c1',code:'A19',nationalId:'10•••••247',noorStudentId:'N1006',source:'noor',perf:88},
     {id:'s7',name:'تركي محمد',classId:'c2',code:'T11',perf:80},
     {id:'s8',name:'يوسف خالد',classId:'c2',code:'Y24',perf:84},
     {id:'s9',name:'علي حسن',classId:'c3',code:'Q16',perf:76}
@@ -761,6 +761,19 @@ function openManualGradeOne(id){
   q('#saveOne',sheet).onclick=()=>{const max=Number(q('#oneMax',sheet).value),val=Number(q('#oneVal',sheet).value);if(!Number.isFinite(max)||!Number.isFinite(val)||val<0||val>max)return;state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'tests',label:q('#oneName',sheet).value||'اختبار',value:val,max});closeSheet();renderStudents()}
 }
 
+function openNoorImport(){
+  openSheet(`<div class="h2">استيراد الطلاب من نور</div>
+  <div class="small mt8">عند الاستيراد يدخل الطالب باسمه ومعه السجل المدني/رقم الهوية والفصل ومعرّف نور عند توفره.</div>
+  <div class="notice mt12">لا تُحفظ بيانات الدخول أو رموز التحقق.</div>
+  <button class="btn primary mt16" id="previewNoorImport" style="width:100%">معاينة الاستيراد</button>`);
+  q('#previewNoorImport',sheet).onclick=()=>{
+    const rows=state.students.filter(x=>x.source==='noor').slice(0,6);
+    sheet.innerHTML=`<div class="h2">معاينة استيراد نور</div><table class="table mt12"><tr><th>الطالب</th><th>السجل</th><th>الحالة</th></tr>${rows.map(st=>`<tr><td>${st.name}</td><td>${st.nationalId||'—'}</td><td>✓ جاهز</td></tr>`).join('')}</table><button class="btn soft mt16" id="closeNoorPreview" style="width:100%">إغلاق</button>`;
+    q('#closeNoorPreview',sheet).onclick=closeSheet;
+  };
+}
+const importNoorBtn=q('#importNoorBtn');if(importNoorBtn)importNoorBtn.onclick=openNoorImport;
+
 function renderClasses(){
   const box=q('#classesGrid');
   box.innerHTML=state.classes.map(c=>{const n=state.students.filter(s=>s.classId===c.id).length;return `<button class="card classcard" style="width:100%;text-align:right;margin-bottom:10px" data-open-class="${c.id}"><div class="row between"><div><div class="h2">${c.grade} — ${c.name}</div><div class="small">${c.subject}</div></div><div class="num">${n}</div></div></button>`}).join('');
@@ -771,7 +784,7 @@ function openClass(cid){
   const c=state.classes.find(x=>x.id===cid), sts=state.students.filter(s=>s.classId===cid), box=q('#classDetail');
   box.classList.remove('hidden');
   box.innerHTML=`<div class="card pad"><div class="row between"><div><div class="h2">${c.grade} — ${c.name}</div><div class="small">${sts.length} طلاب</div></div><button class="btn primary" id="addStudent">+ طالب</button></div>
-  <div class="mt12">${sts.map(s=>`<div class="student"><div class="row between"><div><div class="sname">${s.name}</div><div class="meta">الكود ${s.code||'—'}</div></div><button class="btn soft" style="min-height:36px" data-edit-student="${s.id}">إدارة</button></div></div>`).join('')||'<div class="small">لا يوجد طلاب.</div>'}</div>
+  <div class="mt12">${sts.map(s=>`<div class="student"><div class="row between"><div><div class="sname">${s.name}</div><div class="meta">الكود ${s.code||'—'}${s.nationalId?` · السجل ${s.nationalId}`:''}</div></div><button class="btn soft" style="min-height:36px" data-edit-student="${s.id}">إدارة</button></div></div>`).join('')||'<div class="small">لا يوجد طلاب.</div>'}</div>
   <button class="btn gold mt12" id="manageCodes" style="width:100%">إدارة أكواد الطلاب</button></div>`;
   q('#addStudent').onclick=()=>openAddStudent(cid);
   qa('[data-edit-student]',box).forEach(b=>b.onclick=()=>openStudentManage(b.dataset.editStudent));
@@ -785,12 +798,12 @@ function uniqueCode(){
 }
 function openAddStudent(cid){
   const code=uniqueCode();
-  openSheet(`<div class="h2">إضافة طالب</div><div class="label mt16">اسم الطالب</div><input class="field" id="newStudentName"><div class="label mt12">الكود التلقائي</div><input class="field" id="newStudentCode" value="${code}"><div class="notice mt12">الكود مرتبط بالطالب نفسه وليس بالفصل، ويبقى ثابتًا عند نقله بين الفصول.</div><button class="btn primary mt16" id="saveStudent" style="width:100%">إضافة الطالب</button>`);
-  q('#saveStudent',sheet).onclick=()=>{const name=q('#newStudentName',sheet).value.trim(),c=q('#newStudentCode',sheet).value.trim().toUpperCase();if(!name||!c||state.students.some(s=>s.code===c))return;state.students.push({id:'s'+Date.now(),name,classId:cid,code:c,perf:0});closeSheet();openClass(cid)}
+  openSheet(`<div class="h2">إضافة طالب</div><div class="label mt16">اسم الطالب</div><input class="field" id="newStudentName"><div class="label mt12">السجل المدني / الهوية</div><input class="field" id="newStudentNationalId" inputmode="numeric" placeholder="اختياري عند الإضافة اليدوية"><div class="label mt12">الكود التلقائي</div><input class="field" id="newStudentCode" value="${code}"><div class="notice mt12">المستورد من نور يأتي اسمه وسجله المدني معًا. الكود مرتبط بالطالب نفسه وليس بالفصل.</div><button class="btn primary mt16" id="saveStudent" style="width:100%">إضافة الطالب</button>`);
+  q('#saveStudent',sheet).onclick=()=>{const name=q('#newStudentName',sheet).value.trim(),nationalId=q('#newStudentNationalId',sheet).value.trim(),c=q('#newStudentCode',sheet).value.trim().toUpperCase();if(!name||!c||state.students.some(s=>s.code===c))return;state.students.push({id:'s'+Date.now(),name,classId:cid,code:c,nationalId:nationalId||null,source:'manual',perf:0});closeSheet();openClass(cid)}
 }
 function openStudentManage(id){
   const s=state.students.find(x=>x.id===id), cls=state.classes.find(c=>c.id===s.classId);
-  openSheet(`<div class="h2">${s.name}</div><div class="small mt8">${cls.grade} — ${cls.name} · الكود ${s.code||'—'}</div>
+  openSheet(`<div class="h2">${s.name}</div><div class="small mt8">${cls.grade} — ${cls.name} · الكود ${s.code||'—'}${s.nationalId?` · السجل ${s.nationalId}`:''}</div>
   <div class="grid2 mt16"><button class="btn soft" id="editName">تعديل الاسم</button><button class="btn soft" id="moveStudent">نقل لفصل</button><button class="btn gold" id="changeCode">تغيير الكود</button><button class="btn danger" id="deleteStudent">حذف الطالب</button></div>`);
   q('#editName',sheet).onclick=()=>{const n=prompt('الاسم الجديد',s.name);if(n&&n.trim()){s.name=n.trim();closeSheet();openClass(s.classId)}};
   q('#moveStudent',sheet).onclick=()=>openMoveStudent(id);
