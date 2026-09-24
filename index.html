@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.12</title>
+<title>ركّز — موقع تجريبي v0.13</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -63,7 +63,12 @@ button{cursor:pointer}
 .subitem .subvalue{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:13px;font-weight:800;min-width:46px;text-align:center;border-radius:999px;padding:4px 8px;background:#f2f7f6;color:var(--green)}
 .subitem.negative .subvalue{background:var(--redbg);color:var(--red)}
 
-.student{padding:12px 2px;border-bottom:1px solid #edf3f2}
+.student{padding:12px 2px;border-bottom:1px solid #edf3f2;cursor:pointer}
+.student:hover{background:#fbfdfd}
+.student-summary{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px}
+.mini{font-size:11.5px;font-weight:800;color:var(--muted);background:#f3f7f6;border-radius:999px;padding:4px 7px}
+.mini.warn{background:var(--amberbg);color:var(--amber)}
+.mini.good{background:var(--green3);color:var(--green)}
 .student:last-child{border-bottom:0}
 .sname{font-family:"Almarai","Cairo",Tahoma,sans-serif;font-size:16px;font-weight:800;line-height:1.75;letter-spacing:-.15px}
 .meta{font-size:12.5px;color:var(--muted);font-weight:650;margin-top:2px}
@@ -588,54 +593,115 @@ function openAttendanceGrade(){
 }
 q('#addGradesBtn').addEventListener('click',()=>openAddGrades());
 
+function noteCount(studentId){
+  return state.events.filter(e=>e.studentId===studentId&&e.module==='note').length;
+}
 function renderStudents(){
   const box=q('#studentList');
   let list=currentStudents();
-  if(state.module==='attendance'&&state.attFilter!=='all')list=list.filter(s=>getAtt(s.id)===state.attFilter);
+  if(state.module==='attendance'&&state.attFilter!=='all')list=list.filter(st=>getAtt(st.id)===state.attFilter);
   if(!list.length){box.innerHTML='<div class="small" style="text-align:center;padding:18px">لا يوجد طلاب في هذه الحالة.</div>';return}
   ensureItemSelection();
   const src=moduleSource(), main=src.find(x=>x.id===state.selectedMain), sub=main?.subs.find(x=>x.id===state.selectedSub);
-  box.innerHTML=list.map(s=>{
-    const fc=followCount(s.id);
+
+  box.innerHTML=list.map(st=>{
+    const fc=followCount(st.id), notes=noteCount(st.id), perf=Number(st.perf||0);
     if(state.module==='attendance'){
-      const a=getAtt(s.id);
-      return `<div class="student">
+      const a=getAtt(st.id);
+      return `<div class="student" data-student-row="${st.id}">
         <div class="row between">
-          <div><div class="sname">${s.name}</div><div class="meta">الكود ${s.code||'—'} ${fc?`· ⚠ ${fc} متابعة`:''}</div></div>
-          <div class="row"><span class="scorepill">${attendanceScoreFor(s.id)}/${state.attendanceGrade.max}</span><button class="attstate ${a}" data-att="${s.id}">${attLabels[a]}</button></div>
+          <div>
+            <div class="sname">${st.name}</div>
+            <div class="student-summary">
+              <span class="mini good">الأداء ${perf}/100 ↑</span>
+              ${fc?`<span class="mini warn">⚠ ${fc} متابعة</span>`:''}
+              <span class="mini">${notes} ملاحظات</span>
+            </div>
+          </div>
+          <div class="row">
+            <span class="scorepill">${attendanceScoreFor(st.id)}/${state.attendanceGrade.max}</span>
+            <button class="attstate ${a}" data-att="${st.id}">${attLabels[a]}</button>
+          </div>
         </div>
-        <div class="actionline"><button data-card="${s.id}">بطاقة الطالب</button><button data-note="${s.id}">+ ملاحظة</button></div>
-      </div>`
+      </div>`;
     }
     if(state.module==='tests'){
-      const tests=state.events.filter(e=>e.studentId===s.id&&e.module==='tests');
-      return `<div class="student"><div class="row between"><div><div class="sname">${s.name}</div><div class="meta">${tests.length?`آخر درجة: ${tests[tests.length-1].value}/${tests[tests.length-1].max}`:'لا توجد درجة مضافة'}</div></div><button class="btn soft" style="min-height:38px" data-grade-one="${s.id}">إدخال درجة</button></div></div>`;
+      const tests=state.events.filter(e=>e.studentId===st.id&&e.module==='tests');
+      const last=tests.at(-1);
+      return `<div class="student" data-student-row="${st.id}">
+        <div class="row between">
+          <div>
+            <div class="sname">${st.name}</div>
+            <div class="student-summary">
+              <span class="mini good">الأداء ${perf}/100 ↑</span>
+              ${fc?`<span class="mini warn">⚠ ${fc} متابعة</span>`:''}
+              <span class="mini">${notes} ملاحظات</span>
+            </div>
+          </div>
+          <span class="scorepill">${last?`${last.value}/${last.max}`:'—'}</span>
+        </div>
+      </div>`;
     }
-    const score=main?scoreFor(s.id,main):0;
-    return `<div class="student">
+    const score=main?scoreFor(st.id,main):0;
+    return `<div class="student" data-student-row="${st.id}">
       <div class="row between">
-        <div><div class="sname">${s.name}</div><div class="meta">${fc?`⚠ ${fc} عناصر تحتاج متابعة`:'لا توجد متابعة مفتوحة'}</div></div>
+        <div>
+          <div class="sname">${st.name}</div>
+          <div class="student-summary">
+            <span class="mini good">الأداء ${perf}/100 ↑</span>
+            ${fc?`<span class="mini warn">⚠ ${fc} متابعة</span>`:''}
+            <span class="mini">${notes} ملاحظات</span>
+          </div>
+        </div>
         <span class="scorepill">${score}/${main?.max||0}</span>
       </div>
-      <div class="actionline">
-        ${sub?`<button class="${sub.value<0?'neg':'pos'}" data-apply="${s.id}">${sub.name} ${sub.value>0?'+':''}${sub.value}</button><button class="${state.evalFollow[evalFollowKey(s.id,main,sub)]?'pos':''}" data-follow-eval="${s.id}">${state.evalFollow[evalFollowKey(s.id,main,sub)]?'✓ متابعة':'متابعة'}</button>`:''}
-        <button data-card="${s.id}">بطاقة الطالب</button><button data-note="${s.id}">+ ملاحظة</button>
-      </div>
-    </div>`
+    </div>`;
   }).join('');
-  qa('[data-att]',box).forEach(b=>b.onclick=()=>cycleAtt(b.dataset.att));
-  qa('[data-follow-eval]',box).forEach(b=>b.onclick=()=>{if(!main||!sub)return;const key=evalFollowKey(b.dataset.followEval,main,sub);state.evalFollow[key]=!state.evalFollow[key];renderStudents()});
-  qa('[data-apply]',box).forEach(b=>b.onclick=()=>{if(main&&sub)addEvent(b.dataset.apply,main,sub)});
-  qa('[data-card]',box).forEach(b=>b.onclick=()=>openStudentCard(b.dataset.card));
-  qa('[data-note]',box).forEach(b=>b.onclick=()=>openNote(b.dataset.note));
-  qa('[data-grade-one]',box).forEach(b=>b.onclick=()=>openManualGradeOne(b.dataset.gradeOne));
+
+  qa('[data-att]',box).forEach(b=>b.onclick=e=>{e.stopPropagation();cycleAtt(b.dataset.att)});
+  qa('[data-student-row]',box).forEach(row=>row.onclick=()=>openStudentEvaluation(row.dataset.studentRow,main,sub));
+}
+function openStudentEvaluation(id,main,sub){
+  const st=state.students.find(x=>x.id===id);
+  if(!st)return;
+  if(state.module==='attendance'){
+    return openStudentCard(id);
+  }
+  if(state.module==='tests'){
+    const tests=state.events.filter(e=>e.studentId===id&&e.module==='tests');
+    const last=tests.at(-1);
+    openSheet(`<div class="row between"><div><div class="h2">${st.name}</div><div class="small">الأداء ${st.perf||0}/100 · ${followCount(id)} متابعة · ${noteCount(id)} ملاحظات</div></div><button class="iconbtn" id="evalClose">×</button></div>
+      <div class="panel mt16"><div class="section-title">الاختبارات</div><div class="small">${last?`آخر درجة: ${last.value}/${last.max}`:'لا توجد درجة مضافة'}</div><button class="btn primary mt12" id="evalAddGrade" style="width:100%">إدخال درجة</button></div>
+      <div class="grid2 mt12"><button class="btn soft" id="evalNote">+ ملاحظة</button><button class="btn soft" id="evalCard">بطاقة الطالب</button></div>`);
+    q('#evalClose',sheet).onclick=closeSheet;
+    q('#evalAddGrade',sheet).onclick=()=>openManualGradeOne(id);
+    q('#evalNote',sheet).onclick=()=>{closeSheet();openNote(id)};
+    q('#evalCard',sheet).onclick=()=>{closeSheet();openStudentCard(id)};
+    return;
+  }
+  const followKey=main&&sub?evalFollowKey(id,main,sub):null;
+  openSheet(`<div class="row between"><div><div class="h2">${st.name}</div><div class="small">الأداء ${st.perf||0}/100 · ${followCount(id)} متابعة · ${noteCount(id)} ملاحظات</div></div><button class="iconbtn" id="evalClose">×</button></div>
+    <div class="panel mt16">
+      <div class="section-title">${main?.name||'التقييم'}</div>
+      ${sub?`<div class="row between"><div><strong>${sub.name}</strong><div class="small">الدرجة ${sub.value>0?'+':''}${sub.value}</div></div><span class="scorepill">${scoreFor(id,main)}/${main.max}</span></div>
+      <button class="btn ${sub.value<0?'danger':'primary'} mt12" id="applyEval" style="width:100%">تسجيل التقييم</button>
+      <button class="btn soft mt8" id="toggleEvalFollow" style="width:100%">${state.evalFollow[followKey]?'✓ يحتاج متابعة':'يحتاج متابعة'}</button>`:'<div class="small">اختر بندًا فرعيًا من الأعلى أولًا.</div>'}
+    </div>
+    <div class="grid2 mt12"><button class="btn soft" id="evalNote">+ ملاحظة</button><button class="btn soft" id="evalCard">بطاقة الطالب</button></div>`);
+  q('#evalClose',sheet).onclick=closeSheet;
+  if(q('#applyEval',sheet))q('#applyEval',sheet).onclick=()=>{addEvent(id,main,sub);closeSheet();renderStudents()};
+  if(q('#toggleEvalFollow',sheet))q('#toggleEvalFollow',sheet).onclick=()=>{state.evalFollow[followKey]=!state.evalFollow[followKey];closeSheet();openStudentEvaluation(id,main,sub)};
+  q('#evalNote',sheet).onclick=()=>{closeSheet();openNote(id)};
+  q('#evalCard',sheet).onclick=()=>{closeSheet();openStudentCard(id)};
+  if(q('#evalAddGrade',sheet))q('#evalAddGrade',sheet).onclick=()=>openManualGradeOne(id);
 }
 function renderFollowup(){const c=state.classes.find(x=>x.id===state.classId);q('#followupClassTitle').textContent=c?`${c.grade} — ${c.name}`:'الفصل';ensureAttendanceDay();renderDate();renderModuleTabs();renderTools();renderStudents()}
 
 function openStudentCard(id){
   const s=state.students.find(x=>x.id===id), ev=state.events.filter(e=>e.studentId===id).slice(-8).reverse(), alerts=state.events.filter(e=>e.studentId===id&&e.follow&&!e.resolved).slice().reverse();
-  openSheet(`<div class="row between"><div><div class="h2">${s.name}</div><div class="small">الكود ${s.code||'بدون كود'} · الأداء ${s.perf}/100</div></div><button class="iconbtn" id="xclose">×</button></div>
+  openSheet(`<div class="row between"><div><div class="h2">${s.name}</div><div class="small">الكود ${s.code||'بدون كود'} · الأداء ${s.perf}/100 ↑ · ${noteCount(id)} ملاحظات</div></div><button class="iconbtn" id="xclose">×</button></div>
     ${alerts.length?`<div class="notice mt12">⚠ لدى الطالب ${alerts.length} تنبيهات متابعة أنشأها النظام من الحالات السلبية.</div><div class="mt8">${alerts.map(e=>`<div class="panel mt8 row between"><div><strong>${e.label||e.module}</strong><div class="small">${e.date} · ${e.value>0?'+':''}${e.value??''}</div></div><button class="btn soft" style="min-height:34px" data-resolve="${e.id}">تمت المتابعة</button></div>`).join('')}</div>`:'<div class="notice oknotice mt12">لا توجد متابعة مفتوحة.</div>'}
+    <div class="grid2 mt16"><div class="panel"><div class="small">معدل الأداء</div><div class="h2">${s.perf}/100 ↑</div></div><div class="panel"><div class="small">الملاحظات</div><div class="h2">${noteCount(id)}</div></div></div>
     <div class="section-title mt16">آخر الأحداث</div>
     ${ev.length?ev.map(e=>`<div class="panel mt8"><strong>${e.label||e.module}</strong><div class="small">${e.date} · ${e.value>0?'+':''}${e.value??''} ${e.follow?(e.resolved?'· تمت المتابعة':'· يحتاج متابعة'):''}</div></div>`).join(''):'<div class="small">لا توجد أحداث بعد.</div>'}
     <button class="btn soft mt16" id="cardNote" style="width:100%">+ إضافة ملاحظة أو تذكير</button>`);
