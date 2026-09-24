@@ -378,6 +378,7 @@ const state={
   lessonTitles:{},
   reportClassId:'c1',
   reportSignatures:{rightName:'',rightRole:'المعلم',centerName:'',centerRole:'',leftName:'',leftRole:'مدير المدرسة'},
+  tempPlanEvidence:[],
   codeHistory:[
     {studentId:'s1',oldCode:null,newCode:'R27',date:'2026-09-01',type:'generated'}
   ],
@@ -906,11 +907,128 @@ function openStudentCard(id){
     </div>
     <div class="section-title mt16">آخر الأحداث</div>
     ${ev.length?ev.map(e=>`<div class="panel mt8"><strong>${e.label||e.module}</strong><div class="small">${e.date} · ${e.value>0?'+':''}${e.value??''} ${e.follow?(e.resolved?'· تمت المتابعة':'· يحتاج متابعة'):''}</div></div>`).join(''):'<div class="small">لا توجد أحداث بعد.</div>'}
-    <button class="btn soft mt16" id="cardNote" style="width:100%">+ إضافة ملاحظة أو تذكير</button>`);
+    <div class="grid2 mt16"><button class="btn primary" id="cardReports">تقارير الطالب</button><button class="btn soft" id="cardNote">+ ملاحظة</button></div>`);
   q('#xclose',sheet).onclick=closeSheet;
   qa('[data-resolve]',sheet).forEach(b=>b.onclick=()=>{const e=state.events.find(x=>x.id===b.dataset.resolve);if(e)e.resolved=true;closeSheet();renderStudents();openStudentCard(id)});
+  q('#cardReports',sheet).onclick=()=>openStudentReports(id);
   q('#cardNote',sheet).onclick=()=>{closeSheet();openNote(id)};
 }
+
+function reportStats(studentId){
+  const st=state.students.find(x=>x.id===studentId);
+  const rows=Object.entries(state.attendance).filter(([k])=>k.split('|')[2]===studentId);
+  const counts={present:0,absent:0,late:0,excused:0};
+  rows.forEach(([,v])=>{if(v in counts)counts[v]++});
+  const totalAtt=Object.values(counts).reduce((a,b)=>a+b,0);
+  const attendancePct=totalAtt?Math.round(((counts.present+counts.excused)/totalAtt)*100):100;
+  const tests=state.events.filter(e=>e.studentId===studentId&&e.module==='tests'&&Number(e.max)>0);
+  const testPct=tests.length?Math.round(tests.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/tests.length):0;
+  const itemRows=['participation','homework','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat(state.items.custom||[]).map(m=>{
+    const value=scoreFor(studentId,m); return {name:m.name,value,max:m.max,pct:m.max?Math.round(value/m.max*100):0};
+  });
+  return {st,counts,totalAtt,attendancePct,tests,testPct,itemRows,follow:followCount(studentId),notes:noteCount(studentId)};
+}
+function renderMetric(name,pct,detail){
+  const p=Math.max(0,Math.min(100,Number(pct)||0));
+  return '<div class="report-metric"><div class="row between"><strong>'+name+'</strong><span class="badge">'+p+'%</span></div><div class="report-bar mt8"><span style="--w:'+p+'%"></span></div>'+(detail?'<div class="small mt8">'+detail+'</div>':'')+'</div>';
+}
+function reportTypeLabel(type){
+  return ({summary:'التقرير المختصر',detailed:'التقرير التفصيلي',attendance:'تقرير الحضور',tests:'تقرير الاختبارات',analysis:'تحليل النتائج'})[type]||'تقرير الطالب';
+}
+function reportBody(studentId,type){
+  const r=reportStats(studentId), st=r.st;
+  const recent=state.events.filter(e=>e.studentId===studentId).slice(-12).reverse();
+  if(type==='attendance'){
+    return '<div class="grid2"><div class="panel"><div class="small">حاضر</div><div class="h2">'+r.counts.present+'</div></div><div class="panel"><div class="small">غائب</div><div class="h2">'+r.counts.absent+'</div></div><div class="panel"><div class="small">متأخر</div><div class="h2">'+r.counts.late+'</div></div><div class="panel"><div class="small">مستأذن</div><div class="h2">'+r.counts.excused+'</div></div></div><div class="mt12">'+renderMetric('نسبة الحضور',r.attendancePct,'إجمالي الحالات المسجلة: '+r.totalAtt)+'</div>';
+  }
+  if(type==='tests'){
+    if(!r.tests.length)return '<div class="notice">لا توجد درجات اختبارات مسجلة للطالب بعد.</div>';
+    return '<table class="table"><tr><th>الاختبار</th><th>الدرجة</th><th>النسبة</th></tr>'+r.tests.map(e=>'<tr><td>'+(e.label||'اختبار')+'</td><td>'+e.value+'/'+e.max+'</td><td>'+Math.round(Number(e.value)/Number(e.max)*100)+'%</td></tr>').join('')+'</table><div class="mt12">'+renderMetric('متوسط الاختبارات',r.testPct,'')+'</div>';
+  }
+  if(type==='analysis'){
+    return renderMetric('الحضور',r.attendancePct,'')+renderMetric('الاختبارات',r.testPct,'')+r.itemRows.map(x=>renderMetric(x.name,x.pct,x.value+'/'+x.max)).join('');
+  }
+  const summary='<div class="grid2"><div class="panel"><div class="small">مؤشر الأداء</div><div class="h2">'+(st.perf||0)+'/100</div></div><div class="panel"><div class="small">الحضور</div><div class="h2">'+r.attendancePct+'%</div></div><div class="panel"><div class="small">متوسط الاختبارات</div><div class="h2">'+r.testPct+'%</div></div><div class="panel"><div class="small">متابعات مفتوحة</div><div class="h2">'+r.follow+'</div></div></div>';
+  const items='<div class="section-title mt16">التقييمات</div><div class="panel">'+(r.itemRows.length?r.itemRows.map(x=>'<div class="row between" style="padding:5px 0"><span>'+x.name+'</span><strong>'+x.value+'/'+x.max+'</strong></div>').join(''):'<div class="small">لا توجد تقييمات بعد.</div>')+'</div>';
+  if(type==='summary')return summary+items;
+  return summary+items+'<div class="section-title mt16">آخر الأحداث</div>'+(recent.length?recent.map(e=>'<div class="panel mt8"><strong>'+(e.label||e.module)+'</strong><div class="small">'+(e.date||'')+' · '+(e.value>0?'+':'')+(e.value??'')+'</div></div>').join(''):'<div class="small">لا توجد أحداث بعد.</div>');
+}
+function openStudentReports(id){
+  const st=state.students.find(x=>x.id===id);if(!st)return;
+  openSheet('<div class="row between"><div><div class="h2">تقارير '+st.name+'</div><div class="small">اختر التقرير المطلوب.</div></div><button class="iconbtn" id="reportClose">×</button></div><div class="report-types mt16"><button class="report-type" data-report-type="summary"><strong>تقرير مختصر</strong><span>ملخص الأداء والحضور والاختبارات</span></button><button class="report-type" data-report-type="detailed"><strong>تقرير تفصيلي</strong><span>التقييمات والأحداث بالتفصيل</span></button><button class="report-type" data-report-type="attendance"><strong>تقرير الحضور</strong><span>الحضور والغياب والتأخر</span></button><button class="report-type" data-report-type="tests"><strong>تقرير الاختبارات</strong><span>درجات الطالب ونسبه</span></button><button class="report-type" data-report-type="analysis"><strong>تحليل النتائج</strong><span>رسوم ومؤشرات الأداء</span></button><button class="report-type" id="studentRemedialPlan"><strong>خطة علاجية ذكية</strong><span>تعبئة تلقائية قابلة للتعديل</span></button></div>');
+  q('#reportClose',sheet).onclick=closeSheet;
+  qa('[data-report-type]',sheet).forEach(b=>b.onclick=()=>openReportPreview(id,b.dataset.reportType));
+  q('#studentRemedialPlan',sheet).onclick=()=>openRemedialPlan(id);
+}
+function openReportPreview(id,type){
+  const st=state.students.find(x=>x.id===id), c=state.classes.find(x=>x.id===st?.classId);if(!st)return;
+  openSheet('<div class="row between"><div><div class="h2">'+reportTypeLabel(type)+'</div><div class="small">'+st.name+' · '+(c?c.grade+' — '+c.name:'')+'</div></div><button class="iconbtn" id="previewClose">×</button></div><div class="panel mt16">'+reportBody(id,type)+'</div><button class="btn primary mt16" id="preparePrint" style="width:100%">متابعة للطباعة والتوقيعات</button>');
+  q('#previewClose',sheet).onclick=()=>openStudentReports(id);
+  q('#preparePrint',sheet).onclick=()=>openSignatureStep(id,type);
+}
+function openSignatureStep(id,type,customPrint){
+  const sig=state.reportSignatures;
+  openSheet('<div class="h2">التوقيعات قبل الطباعة</div><div class="small mt8">اكتب الاسم والصفة كما تريد ظهورها في التقرير.</div><div class="signature-grid mt16"><div class="signature-box"><div class="signature-pos">يمين التقرير</div><input class="field" id="sigRightName" placeholder="الاسم" value="'+(sig.rightName||'')+'"><input class="field mt8" id="sigRightRole" placeholder="الصفة" value="'+(sig.rightRole||'المعلم')+'"></div><div class="signature-box"><div class="signature-pos">وسط التقرير</div><input class="field" id="sigCenterName" placeholder="الاسم" value="'+(sig.centerName||'')+'"><input class="field mt8" id="sigCenterRole" placeholder="الصفة" value="'+(sig.centerRole||'')+'"></div><div class="signature-box"><div class="signature-pos">يسار التقرير</div><input class="field" id="sigLeftName" placeholder="الاسم" value="'+(sig.leftName||'')+'"><input class="field mt8" id="sigLeftRole" placeholder="الصفة" value="'+(sig.leftRole||'مدير المدرسة')+'"></div></div><div class="row mt16"><button class="btn soft" id="backToReport">رجوع</button><button class="btn primary" id="printStudentReport" style="flex:1">طباعة التقرير</button></div>');
+  q('#backToReport',sheet).onclick=()=>{if(customPrint)customPrint('back');else openReportPreview(id,type)};
+  q('#printStudentReport',sheet).onclick=()=>{
+    state.reportSignatures={rightName:q('#sigRightName',sheet).value.trim(),rightRole:q('#sigRightRole',sheet).value.trim(),centerName:q('#sigCenterName',sheet).value.trim(),centerRole:q('#sigCenterRole',sheet).value.trim(),leftName:q('#sigLeftName',sheet).value.trim(),leftRole:q('#sigLeftRole',sheet).value.trim()};
+    if(customPrint)customPrint('print');else printStudentReport(id,type);
+  };
+}
+function printStudentReport(id,type){
+  const st=state.students.find(x=>x.id===id), c=state.classes.find(x=>x.id===st?.classId), sig=state.reportSignatures;if(!st)return;
+  openPrintWindow(reportTypeLabel(type),st.name,c,reportBody(id,type),sig,[]);
+}
+function openPrintWindow(title,studentName,c,body,sig,evidence){
+  const logo=q('.brand-logo')?.src||'', w=window.open('','_blank','width=900,height=1100');
+  if(!w){showToast('اسمح بفتح نافذة الطباعة من المتصفح.');return}
+  const esc=v=>String(v||'');
+  const sigBox=(name,role)=>'<div class="sig"><strong>'+esc(role)+'</strong><span>'+esc(name)+'</span><div class="line"></div><small>التوقيع</small></div>';
+  const evHtml=(evidence||[]).length?'<div class="section-title">الشواهد</div><div class="evgrid">'+evidence.map(src=>'<img src="'+src+'">').join('')+'</div>':'';
+  w.document.write('<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+esc(title)+' - '+esc(studentName)+'</title><style>*{box-sizing:border-box}body{font-family:Arial,Tahoma,sans-serif;color:#17383a;margin:0;padding:28px;background:#fff}.page{max-width:780px;margin:auto}.head{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #0f4f4d;padding-bottom:12px}.head img{width:110px;height:60px;object-fit:contain}h1{font-size:22px;color:#0f4f4d;margin:18px 0 6px}h2{font-size:18px;margin:0}.sub,.small{font-size:12px;color:#6f8586}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.panel{border:1px solid #dde9e7;border-radius:12px;padding:12px;background:#fbfdfd}.row{display:flex;align-items:center;gap:10px}.between{justify-content:space-between}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.section-title{font-weight:800;margin:16px 0 8px}.badge{font-size:11px;background:#eaf4f2;color:#0f4f4d;border-radius:999px;padding:3px 7px}.report-metric{padding:9px 0;border-bottom:1px solid #edf2f1}.report-bar{height:9px;border-radius:999px;background:#edf3f2;overflow:hidden}.report-bar span{display:block;height:100%;background:#176d68;border-radius:999px;width:var(--w)}table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #e6eeec;text-align:right;font-size:12px}.signatures{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;margin-top:46px}.sig{text-align:center;min-height:90px}.sig strong,.sig span{display:block;font-size:13px}.sig .line{border-bottom:1px solid #879998;margin:28px 12px 5px}.sig small{font-size:10px;color:#7a8d8d}.evgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.evgrid img{width:100%;max-height:260px;object-fit:contain;border:1px solid #dde9e7;border-radius:8px}@media print{body{padding:0}}</style></head><body><div class="page"><div class="head"><img src="'+logo+'"><div class="small">تطبيق ركّز للمعلم<br>تقرير طالب</div></div><h1>'+esc(title)+'</h1><h2>'+esc(studentName)+'</h2><div class="sub">'+(c?esc(c.grade+' — '+c.name+' · '+c.subject):'')+' · '+new Date().toLocaleDateString('ar-SA')+'</div><div>'+body+'</div>'+evHtml+'<div class="signatures">'+sigBox(sig.rightName,sig.rightRole)+sigBox(sig.centerName,sig.centerRole)+sigBox(sig.leftName,sig.leftRole)+'</div></div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>');
+  w.document.close();
+}
+function renderReports(){
+  const classBox=q('#reportClassChips'), studentBox=q('#reportStudentList');if(!classBox||!studentBox)return;
+  if(!state.classes.some(c=>c.id===state.reportClassId))state.reportClassId=state.classes[0]?.id||null;
+  classBox.innerHTML=state.classes.map(c=>'<button class="chip '+(c.id===state.reportClassId?'active':'')+'" data-report-class="'+c.id+'">'+c.grade+' — '+c.name+'</button>').join('');
+  const sts=state.students.filter(st=>st.classId===state.reportClassId);
+  studentBox.innerHTML='<button class="btn primary" id="externalRemedialPlan" style="width:100%;margin-bottom:10px">+ خطة علاجية لطالب من داخل أو خارج التطبيق</button>'+(sts.length?sts.map(st=>'<button class="student" style="width:100%;border:0;background:transparent;text-align:right" data-report-student="'+st.id+'"><div class="row between"><div><div class="sname">'+st.name+'</div><div class="small">الأداء '+(st.perf||0)+'/100</div></div><span class="badge">فتح التقارير</span></div></button>').join(''):'<div class="small">لا يوجد طلاب في هذا الفصل.</div>');
+  qa('[data-report-class]',classBox).forEach(b=>b.onclick=()=>{state.reportClassId=b.dataset.reportClass;renderReports()});
+  qa('[data-report-student]',studentBox).forEach(b=>b.onclick=()=>openStudentReports(b.dataset.reportStudent));
+  q('#externalRemedialPlan',studentBox).onclick=()=>openRemedialPlan(null);
+}
+function smartPlanSuggestions(studentId){
+  if(!studentId)return {issue:'',goal:'',actions:'',measure:''};
+  const r=reportStats(studentId), low=r.itemRows.filter(x=>x.pct<60).map(x=>x.name);
+  const lowTests=r.tests.filter(e=>Number(e.value)/Number(e.max)<.6).map(e=>e.label||'اختبار');
+  const parts=[low.length?'تدنٍ في: '+low.join('، '):'',lowTests.length?'نتائج أقل من حد الإتقان في: '+lowTests.join('، '):'',r.follow?'توجد '+r.follow+' متابعات مفتوحة':''].filter(Boolean);
+  const issue=parts.join('؛ ');
+  return {issue,goal:issue?'رفع مستوى الإتقان ومعالجة جوانب التعثر المحددة.':'',actions:issue?'شرح مركز، تدريب متدرج، نشاط علاجي قصير، ثم إعادة قياس.':'',measure:issue?'إعادة قياس قصير ومقارنة النتيجة السابقة بالجديدة.':''};
+}
+function openRemedialPlan(studentId){
+  state.tempPlanEvidence=[];
+  const st=studentId?state.students.find(x=>x.id===studentId):null, c=st?state.classes.find(x=>x.id===st.classId):null, sug=smartPlanSuggestions(studentId);
+  openSheet('<div class="h2">خطة علاجية ذكية</div><div class="small mt8">المقترحات آلية وقابلة للتعديل بالكامل، ولا تُحفظ الخطة أو الصور تلقائيًا.</div><div class="grid2 mt16"><div><div class="label">اسم الطالب</div><input class="field" id="rpName" value="'+(st?st.name:'')+'" placeholder="اكتب الاسم"></div><div><div class="label">الصف</div><input class="field" id="rpGrade" value="'+(c?c.grade:'')+'" placeholder="الصف"></div></div><div class="label mt12">الفصل</div><input class="field" id="rpClass" value="'+(c?c.name:'')+'" placeholder="الفصل أو الشعبة"><div class="label mt12">مصدر القياس</div><input class="field" id="rpSource" placeholder="اختبار، ملاحظة صفية، واجب..."><div class="label mt12">جوانب التعثر</div><textarea class="field" id="rpIssue" placeholder="اكتب جوانب التعثر">'+sug.issue+'</textarea><div class="label mt12">الهدف العلاجي</div><textarea class="field" id="rpGoal">'+sug.goal+'</textarea><div class="label mt12">الإجراءات العلاجية</div><textarea class="field" id="rpActions">'+sug.actions+'</textarea><div class="label mt12">أداة التحقق / إعادة القياس</div><textarea class="field" id="rpMeasure">'+sug.measure+'</textarea><div class="label mt12">شواهد مؤقتة</div><input class="field" id="rpEvidence" type="file" accept="image/*" capture="environment" multiple><div class="small mt8">يمكن التصوير أو رفع صور. تستخدم في الطباعة فقط ثم تُمسح من الجلسة ولا تُرفع للخدمة السحابية.</div><div id="rpEvidenceList" class="small mt8"></div><button class="btn primary mt16" id="rpToPrint" style="width:100%">متابعة للطباعة والتوقيعات</button>');
+  q('#rpEvidence',sheet).onchange=e=>{
+    state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));
+    state.tempPlanEvidence=[...e.target.files].map(f=>URL.createObjectURL(f));
+    q('#rpEvidenceList',sheet).textContent=state.tempPlanEvidence.length?'تم اختيار '+state.tempPlanEvidence.length+' صورة مؤقتة.':'';
+  };
+  q('#rpToPrint',sheet).onclick=()=>{
+    const data={name:q('#rpName',sheet).value.trim(),grade:q('#rpGrade',sheet).value.trim(),className:q('#rpClass',sheet).value.trim(),source:q('#rpSource',sheet).value.trim(),issue:q('#rpIssue',sheet).value.trim(),goal:q('#rpGoal',sheet).value.trim(),actions:q('#rpActions',sheet).value.trim(),measure:q('#rpMeasure',sheet).value.trim()};
+    if(!data.name){showToast('اكتب اسم الطالب أولًا.');return}
+    openSignatureStep(studentId,'remedial',action=>{
+      if(action==='back'){openRemedialPlan(studentId);return}
+      const fakeClass={grade:data.grade,name:data.className,subject:''};
+      const body='<div class="panel"><div class="section-title">مصدر القياس</div><div>'+ (data.source||'—') +'</div></div><div class="panel mt12"><div class="section-title">جوانب التعثر</div><div>'+ (data.issue||'—') +'</div></div><div class="panel mt12"><div class="section-title">الهدف العلاجي</div><div>'+ (data.goal||'—') +'</div></div><div class="panel mt12"><div class="section-title">الإجراءات العلاجية</div><div>'+ (data.actions||'—') +'</div></div><div class="panel mt12"><div class="section-title">التحقق وإعادة القياس</div><div>'+ (data.measure||'—') +'</div></div>';
+      openPrintWindow('الخطة العلاجية',data.name,fakeClass,body,state.reportSignatures,state.tempPlanEvidence);
+      setTimeout(()=>{state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));state.tempPlanEvidence=[]},1500);
+      closeSheet();
+    });
+  };
+}
+
 function openNote(id){
   const s=state.students.find(x=>x.id===id);
   openSheet(`<div class="h2">ملاحظة — ${s.name}</div><div class="small mt8">التاريخ والوقت يسجلان تلقائيًا.</div>
