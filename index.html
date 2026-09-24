@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.13</title>
+<title>ركّز — موقع تجريبي v0.14</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -146,7 +146,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
         <div class="hero-actions"><button class="btn" id="openLessonBtn" style="background:#fff;color:var(--green)">فتح الحصة</button><button class="btn" id="manageScheduleBtn" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.24)">إدارة الجدول</button></div>
       </div>
       <div class="grid2 mt12">
-        <button class="toolcard" data-go="followup"><strong>التحضير</strong><span>حضور ومتابعة سريعة للحصة</span></button>
+        <button class="toolcard" data-go="prepare"><strong>التحضير</strong><span>حضور ومتابعة سريعة للحصة</span></button>
         <button class="toolcard" id="homeScheduleBtn"><strong>جدولي</strong><span>الحصص والفصول والتوقيت</span></button>
         <button class="toolcard" data-go="correction"><strong>التصحيح الإلكتروني</strong><span>نماذج الإجابة وتصحيح الأوراق</span></button>
         <button class="toolcard" data-go="students"><strong>طلابي</strong><span>الصفوف والفصول وإدارة الطلاب</span></button>
@@ -159,13 +159,24 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
       </div>
     </section>
 
+    <section data-view="prepare" class="hidden">
+      <div class="h1">التحضير</div>
+      <div class="small mt8">اختر الفصل الذي تريد فتحه.</div>
+      <div id="prepareCurrentLesson" class="mt12"></div>
+      <div class="section-title mt16">فصولي</div>
+      <div id="prepareClasses"></div>
+    </section>
+
     <section data-view="followup" class="hidden">
       <div class="row between">
         <div>
           <div class="h1">التحضير والمتابعة</div>
           <div class="class-context" id="followupClassTitle">—</div>
         </div>
-        <span class="badge" id="dayState">اليوم</span>
+        <div class="row" style="gap:6px">
+          <button class="btn soft" id="changeFollowupClass" style="min-height:36px;padding-inline:10px">تغيير الفصل</button>
+          <span class="badge" id="dayState">اليوم</span>
+        </div>
       </div>
 
       <div class="card datebox mt12">
@@ -268,7 +279,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 
   <nav class="nav">
     <button class="active" data-nav="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/></svg><span>الرئيسية</span></button>
-    <button data-nav="followup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4m8-4v4m-8 6 2 2 5-5"/></svg><span>التحضير</span></button>
+    <button data-nav="prepare"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4m8-4v4m-8 6 2 2 5-5"/></svg><span>التحضير</span></button>
     <button data-nav="correction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="m8 12 2.5 2.5L16 9"/></svg><span>التصحيح</span></button>
     <button data-nav="students"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5A5 5 0 0 1 21 19"/></svg><span>الطلاب</span></button>
     <button data-nav="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg><span>الحساب</span></button>
@@ -410,10 +421,39 @@ function openScheduleManager(){
 }
 function openEditLesson(id){const l=state.schedule.find(x=>x.id===id);if(!l)return;openSheet(`<div class="h2">تعديل الحصة</div><div class="grid2 mt12"><select class="field" id="eDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="eClass">${state.classes.map(c=>`<option value="${c.id}">${c.grade} — ${c.name}</option>`).join('')}</select></div><div class="grid2 mt8"><input class="field" id="eStart" type="time" value="${l.start}"><input class="field" id="eEnd" type="time" value="${l.end}"></div><input class="field mt8" id="eSubject" value="${l.subject}"><div class="row mt16"><button class="btn soft" id="cancelEditLesson">إلغاء</button><button class="btn primary" id="saveEditLesson" style="flex:1">حفظ التعديل</button></div>`);q('#eDay',sheet).value=String(l.day);q('#eClass',sheet).value=l.classId;q('#cancelEditLesson',sheet).onclick=()=>{closeSheet();openScheduleManager()};q('#saveEditLesson',sheet).onclick=()=>{const start=q('#eStart',sheet).value,end=q('#eEnd',sheet).value;if(minutesOf(end)<=minutesOf(start))return;l.day=Number(q('#eDay',sheet).value);l.classId=q('#eClass',sheet).value;l.start=start;l.end=end;l.subject=q('#eSubject',sheet).value.trim()||'المادة';saveSchedule();closeSheet();renderLessonHero();openScheduleManager()}}
 
+function renderPrepareChooser(){
+  const currentBox=q('#prepareCurrentLesson'), list=q('#prepareClasses');
+  if(!currentBox||!list)return;
+  const ctx=lessonContext();
+  if(ctx.lesson){
+    const l=ctx.lesson;
+    currentBox.innerHTML=`<div class="hero">
+      <div class="row between"><div style="font-size:12.5px;font-weight:800;opacity:.82">${ctx.kind==='current'?'الحصة الحالية':'الحصة القادمة'}</div><span class="timepill">${l.start} — ${l.end}</span></div>
+      <div style="font-family:'IBM Plex Sans Arabic';font-size:20px;font-weight:800;margin-top:4px">${lessonClassLabel(l)}</div>
+      <div style="font-size:13px;opacity:.88;font-weight:700;margin-top:2px">${l.subject}</div>
+      <button class="btn mt12" style="width:100%;background:#fff;color:var(--green)" data-prepare-class="${l.classId}">فتح هذا الفصل</button>
+    </div>`;
+  }else{
+    currentBox.innerHTML='';
+  }
+  list.innerHTML=state.classes.map(c=>{
+    const count=state.students.filter(st=>st.classId===c.id).length;
+    const lessons=state.schedule.filter(l=>l.classId===c.id).length;
+    return `<button class="card classcard" data-prepare-class="${c.id}" style="width:100%;text-align:right;margin-bottom:10px">
+      <div class="row between">
+        <div><div class="h2">${c.grade} — ${c.name}</div><div class="small">${c.subject} · ${count} طلاب${lessons?` · ${lessons} حصص بالجدول`:''}</div></div>
+        <div class="num">›</div>
+      </div>
+    </button>`;
+  }).join('');
+  qa('[data-prepare-class]',q('[data-view="prepare"]')).forEach(b=>b.onclick=()=>{state.classId=b.dataset.prepareClass;showView('followup')});
+}
+
 function showView(v){
   state.view=v;
   qa('[data-view]').forEach(x=>x.classList.toggle('hidden',x.dataset.view!==v));
-  qa('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===v));
+  qa('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===(v==='followup'?'prepare':v)));
+  if(v==='prepare')renderPrepareChooser();
   if(v==='followup')renderFollowup();
   if(v==='students')renderClasses();
   if(v==='home')renderLessonHero();
@@ -421,7 +461,8 @@ function showView(v){
 qa('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
 qa('[data-go]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.go)));
 q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
-q('#headerBack').addEventListener('click',()=>{ if(state.view!=='home')showView('home'); });
+q('#headerBack').addEventListener('click',()=>{ if(state.view==='followup')showView('prepare'); else if(state.view!=='home')showView('home'); });
+q('#changeFollowupClass').addEventListener('click',()=>showView('prepare'));
 
 function dateParts(iso){
   const [y,m,d]=iso.split('-').map(Number);
