@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.24</title>
+<title>ركّز — موقع تجريبي v0.25</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -136,7 +136,13 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 .seg{display:flex;background:#eef5f4;border-radius:13px;padding:3px;gap:3px}
 .seg button{flex:1;min-height:38px;border:0;background:transparent;border-radius:10px;font-size:12px;font-weight:800;color:#617779}
 .seg button.active{background:#fff;color:var(--green);box-shadow:0 1px 3px rgba(18,70,70,.08)}
-@media (max-width:350px){.brand{font-size:25px}.tab{padding:0 11px}.main{padding-inline:11px}.sname{font-size:15.5px}}
+.report-types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.report-type{min-height:78px;border:1px solid var(--line);background:#fff;border-radius:14px;padding:10px;text-align:right;color:var(--ink)}
+.report-type strong{display:block;font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:14px}.report-type span{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;font-weight:700}
+.report-bar{height:10px;border-radius:999px;background:#edf3f2;overflow:hidden}.report-bar>span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--green2),var(--brown2));width:0;animation:barGrow .65s ease forwards}
+.report-metric{padding:9px 0;border-bottom:1px solid #edf2f1}.report-metric:last-child{border-bottom:0}@keyframes barGrow{from{width:0}to{width:var(--w)}}
+.signature-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}.signature-box{border:1px solid var(--line);border-radius:12px;padding:8px;background:#fbfdfd}.signature-box .field{min-height:40px;font-size:12.5px;padding-inline:8px}.signature-pos{font-size:11px;font-weight:800;color:var(--muted);margin-bottom:5px;text-align:center}
+@media (max-width:350px){.brand{font-size:25px}.tab{padding:0 11px}.main{padding-inline:11px}.sname{font-size:15.5px}.report-types{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -168,6 +174,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
         <button class="toolcard" id="homeScheduleBtn"><strong>جدولي</strong><span>الحصص والفصول والتوقيت</span></button>
         <button class="toolcard" data-go="correction"><strong>التصحيح الإلكتروني</strong><span>نماذج الإجابة وتصحيح الأوراق</span></button>
         <button class="toolcard" data-go="students"><strong>طلابي</strong><span>الصفوف والفصول وإدارة الطلاب</span></button>
+        <button class="toolcard" data-go="reports"><strong>التقارير</strong><span>تقارير الطلاب والتحليل والطباعة</span></button>
       </div>
       <div class="card pad mt12">
         <div class="section-title">آخر المتابعات</div>
@@ -276,6 +283,13 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
       <div id="classDetail" class="hidden mt12"></div>
     </section>
 
+    <section data-view="reports" class="hidden">
+      <div class="h1">التقارير</div>
+      <div class="small mt8">قسم مستقل للتقارير والطباعة. اختر الفصل ثم الطالب.</div>
+      <div class="chips mt12" id="reportClassChips"></div>
+      <div id="reportStudentList" class="card pad mt12"></div>
+    </section>
+
     <section data-view="correction" class="hidden">
       <div class="h1">التصحيح الإلكتروني</div>
       <div class="notice mt12">هذا المسار مستقل عن «الاختبارات» داخل التحضير. هنا نموذج الإجابة، تصوير الأوراق، OMR، المراجعة والنتائج.</div>
@@ -362,6 +376,8 @@ const state={
   evalFollow:{},
   bulkContext:null,
   lessonTitles:{},
+  reportClassId:'c1',
+  reportSignatures:{rightName:'',rightRole:'المعلم',centerName:'',centerRole:'',leftName:'',leftRole:'مدير المدرسة'},
   codeHistory:[
     {studentId:'s1',oldCode:null,newCode:'R27',date:'2026-09-01',type:'generated'}
   ],
@@ -477,6 +493,7 @@ function showView(v){
   if(v==='prepare')renderPrepareChooser();
   if(v==='followup')renderFollowup();
   if(v==='students')renderClasses();
+  if(v==='reports')renderReports();
   if(v==='home')renderLessonHero();
 }
 qa('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
