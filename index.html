@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.26</title>
+<title>ركّز — موقع تجريبي v0.27</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -285,9 +285,8 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 
     <section data-view="reports" class="hidden">
       <div class="h1">التقارير</div>
-      <div class="small mt8">قسم مستقل للتقارير والطباعة. اختر الفصل ثم الطالب.</div>
-      <div class="chips mt12" id="reportClassChips"></div>
-      <div id="reportStudentList" class="card pad mt12"></div>
+      <div class="small mt8">نماذج وتقارير جاهزة للمعلم. اختر النموذج أولًا، ثم حدد الطالب من ركّز أو من خارج التطبيق.</div>
+      <div id="reportLibrary" class="mt12"></div>
     </section>
 
     <section data-view="correction" class="hidden">
@@ -992,15 +991,40 @@ function openPrintWindow(title,studentName,c,body,sig,evidence){
   w.document.close();
 }
 function renderReports(){
-  const classBox=q('#reportClassChips'), studentBox=q('#reportStudentList');if(!classBox||!studentBox)return;
-  if(!state.classes.some(c=>c.id===state.reportClassId))state.reportClassId=state.classes[0]?.id||null;
-  classBox.innerHTML=state.classes.map(c=>'<button class="chip '+(c.id===state.reportClassId?'active':'')+'" data-report-class="'+c.id+'">'+c.grade+' — '+c.name+'</button>').join('');
-  const sts=state.students.filter(st=>st.classId===state.reportClassId);
-  studentBox.innerHTML='<button class="btn primary" id="externalRemedialPlan" style="width:100%;margin-bottom:10px">+ خطة علاجية لطالب من داخل أو خارج التطبيق</button>'+(sts.length?sts.map(st=>'<button class="student" style="width:100%;border:0;background:transparent;text-align:right" data-report-student="'+st.id+'"><div class="row between"><div><div class="sname">'+st.name+'</div><div class="small">الأداء '+(st.perf||0)+'/100</div></div><span class="badge">فتح التقارير</span></div></button>').join(''):'<div class="small">لا يوجد طلاب في هذا الفصل.</div>');
-  qa('[data-report-class]',classBox).forEach(b=>b.onclick=()=>{state.reportClassId=b.dataset.reportClass;renderReports()});
-  qa('[data-report-student]',studentBox).forEach(b=>b.onclick=()=>openStudentReports(b.dataset.reportStudent));
-  q('#externalRemedialPlan',studentBox).onclick=()=>openRemedialPlan(null);
+  const box=q('#reportLibrary');if(!box)return;
+  box.innerHTML='<div class="report-types">'
+    +'<button class="report-type" data-external-report="remedial"><strong>خطة علاجية</strong><span>خطة ذكية قابلة للتعديل والطباعة</span></button>'
+    +'<button class="report-type" data-external-report="evidence"><strong>شاهد تنفيذ</strong><span>توثيق تنفيذ مع صور مؤقتة للطباعة</span></button>'
+    +'<button class="report-type" data-external-report="referral"><strong>تحويل طالب</strong><span>إحالة للوكيل أو الموجه الطلابي أو الإدارة</span></button>'
+    +'</div>'
+    +'<div class="notice mt12">يمكن لاحقًا إضافة أي نموذج آخر يفيد المعلم داخل هذه المكتبة دون تغيير شاشة التحضير.</div>';
+  qa('[data-external-report]',box).forEach(b=>b.onclick=()=>openReportSubjectPicker(b.dataset.externalReport));
 }
+function openReportSubjectPicker(type){
+  const labels={remedial:'خطة علاجية',evidence:'شاهد تنفيذ',referral:'تحويل طالب'};
+  openSheet('<div class="h2">'+labels[type]+'</div><div class="small mt8">حدد مصدر الطالب.</div>'
+    +'<div class="grid2 mt16"><button class="toolcard" id="pickRakkizStudent"><strong>طالب من ركّز</strong><span>اختيار طالب محفوظ في التطبيق</span></button><button class="toolcard" id="pickExternalStudent"><strong>طالب من الخارج</strong><span>إدخال الاسم والصف والفصل يدويًا</span></button></div>');
+  q('#pickRakkizStudent',sheet).onclick=()=>openInternalStudentPicker(type);
+  q('#pickExternalStudent',sheet).onclick=()=>openExternalReportByType(type,null);
+}
+function openInternalStudentPicker(type){
+  openSheet('<div class="h2">اختر الطالب</div><div class="chips mt12" id="pickerClasses"></div><div id="pickerStudents" class="mt12"></div>');
+  let cid=state.reportClassId||state.classes[0]?.id;
+  function draw(){
+    q('#pickerClasses',sheet).innerHTML=state.classes.map(c=>'<button class="chip '+(c.id===cid?'active':'')+'" data-pick-class="'+c.id+'">'+c.grade+' — '+c.name+'</button>').join('');
+    const sts=state.students.filter(st=>st.classId===cid);
+    q('#pickerStudents',sheet).innerHTML=sts.length?sts.map(st=>'<button class="student" style="width:100%;border:0;background:transparent;text-align:right" data-pick-student="'+st.id+'"><div class="row between"><div><div class="sname">'+st.name+'</div><div class="small">الأداء '+(st.perf||0)+'/100</div></div><span class="badge">اختيار</span></div></button>').join(''):'<div class="small">لا يوجد طلاب في هذا الفصل.</div>';
+    qa('[data-pick-class]',sheet).forEach(b=>b.onclick=()=>{cid=b.dataset.pickClass;state.reportClassId=cid;draw()});
+    qa('[data-pick-student]',sheet).forEach(b=>b.onclick=()=>openExternalReportByType(type,b.dataset.pickStudent));
+  }
+  draw();
+}
+function openExternalReportByType(type,studentId){
+  if(type==='remedial')return openRemedialPlan(studentId);
+  if(type==='evidence')return openExecutionEvidence(studentId);
+  if(type==='referral')return openStudentReferral(studentId);
+}
+
 function smartPlanSuggestions(studentId){
   if(!studentId)return {issue:'',goal:'',actions:'',measure:''};
   const r=reportStats(studentId), low=r.itemRows.filter(x=>x.pct<60).map(x=>x.name);
@@ -1028,6 +1052,67 @@ function openRemedialPlan(studentId){
       openPrintWindow('الخطة العلاجية',data.name,fakeClass,body,state.reportSignatures,state.tempPlanEvidence);
       setTimeout(()=>{state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));state.tempPlanEvidence=[]},1500);
       closeSheet();
+    });
+  };
+}
+
+function externalStudentBase(studentId){
+  const st=studentId?state.students.find(x=>x.id===studentId):null;
+  const c=st?state.classes.find(x=>x.id===st.classId):null;
+  return {st,c};
+}
+function openExecutionEvidence(studentId){
+  state.tempPlanEvidence=[];
+  const {st,c}=externalStudentBase(studentId);
+  openSheet('<div class="h2">شاهد تنفيذ</div><div class="small mt8">توثيق مختصر للتنفيذ، ويمكن إرفاق صور مؤقتة للطباعة فقط.</div>'
+    +'<div class="grid2 mt16"><div><div class="label">اسم الطالب</div><input class="field" id="evName" value="'+(st?st.name:'')+'" placeholder="اسم الطالب"></div><div><div class="label">الصف</div><input class="field" id="evGrade" value="'+(c?c.grade:'')+'" placeholder="الصف"></div></div>'
+    +'<div class="label mt12">الفصل</div><input class="field" id="evClass" value="'+(c?c.name:'')+'" placeholder="الفصل أو الشعبة">'
+    +'<div class="label mt12">عنوان الشاهد / النشاط</div><input class="field" id="evTitle" placeholder="مثال: تنفيذ نشاط علاجي">'
+    +'<div class="label mt12">وصف التنفيذ</div><textarea class="field" id="evDesc" placeholder="ماذا تم تنفيذه؟"></textarea>'
+    +'<div class="label mt12">النتيجة أو الأثر</div><textarea class="field" id="evResult" placeholder="ما أثر التنفيذ على الطالب؟"></textarea>'
+    +'<div class="label mt12">صور الشاهد</div><input class="field" id="evFiles" type="file" accept="image/*" capture="environment" multiple>'
+    +'<div class="small mt8">الصور مؤقتة، تستخدم للطباعة فقط ولا تُحفظ في الخدمة السحابية.</div><div id="evFilesCount" class="small mt8"></div>'
+    +'<button class="btn primary mt16" id="evPrint" style="width:100%">متابعة للطباعة والتوقيعات</button>');
+  q('#evFiles',sheet).onchange=e=>{
+    state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));
+    state.tempPlanEvidence=[...e.target.files].map(f=>URL.createObjectURL(f));
+    q('#evFilesCount',sheet).textContent=state.tempPlanEvidence.length?'تم اختيار '+state.tempPlanEvidence.length+' صورة مؤقتة.':'';
+  };
+  q('#evPrint',sheet).onclick=()=>{
+    const data={name:q('#evName',sheet).value.trim(),grade:q('#evGrade',sheet).value.trim(),className:q('#evClass',sheet).value.trim(),title:q('#evTitle',sheet).value.trim(),desc:q('#evDesc',sheet).value.trim(),result:q('#evResult',sheet).value.trim()};
+    if(!data.name){showToast('اكتب اسم الطالب أولًا.');return}
+    openSignatureStep(studentId,'evidence',action=>{
+      if(action==='back'){openExecutionEvidence(studentId);return}
+      const fakeClass={grade:data.grade,name:data.className,subject:''};
+      const body='<div class="panel"><div class="section-title">عنوان الشاهد</div><div>'+(data.title||'—')+'</div></div><div class="panel mt12"><div class="section-title">وصف التنفيذ</div><div>'+(data.desc||'—')+'</div></div><div class="panel mt12"><div class="section-title">النتيجة أو الأثر</div><div>'+(data.result||'—')+'</div></div>';
+      openPrintWindow('شاهد تنفيذ',data.name,fakeClass,body,state.reportSignatures,state.tempPlanEvidence);
+      setTimeout(()=>{state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));state.tempPlanEvidence=[]},1500);
+      closeSheet();
+    });
+  };
+}
+function openStudentReferral(studentId){
+  const {st,c}=externalStudentBase(studentId);
+  openSheet('<div class="h2">تحويل طالب</div><div class="small mt8">إذا كان الطالب من ركّز فسيتم ربط التحويل بسجل الطالب وملاحظاته.</div>'
+    +'<div class="grid2 mt16"><div><div class="label">اسم الطالب</div><input class="field" id="rfName" value="'+(st?st.name:'')+'" placeholder="اسم الطالب"></div><div><div class="label">الصف</div><input class="field" id="rfGrade" value="'+(c?c.grade:'')+'" placeholder="الصف"></div></div>'
+    +'<div class="label mt12">الفصل</div><input class="field" id="rfClass" value="'+(c?c.name:'')+'" placeholder="الفصل أو الشعبة">'
+    +'<div class="label mt12">جهة التحويل</div><select class="field" id="rfTo"><option value="الوكيل">الوكيل</option><option value="الموجه الطلابي">الموجه الطلابي</option><option value="إدارة المدرسة">إدارة المدرسة</option><option value="أخرى">أخرى</option></select>'
+    +'<div class="label mt12">سبب التحويل</div><textarea class="field" id="rfReason" placeholder="سبب تحويل الطالب..."></textarea>'
+    +'<div class="label mt12">ما تم مع الطالب قبل التحويل</div><textarea class="field" id="rfActions" placeholder="تنبيه، تواصل، متابعة، ملاحظات..."></textarea>'
+    +'<button class="btn primary mt16" id="rfPrint" style="width:100%">متابعة للطباعة والتوقيعات</button>');
+  q('#rfPrint',sheet).onclick=()=>{
+    const data={name:q('#rfName',sheet).value.trim(),grade:q('#rfGrade',sheet).value.trim(),className:q('#rfClass',sheet).value.trim(),to:q('#rfTo',sheet).value,reason:q('#rfReason',sheet).value.trim(),actions:q('#rfActions',sheet).value.trim()};
+    if(!data.name||!data.reason){showToast('اكتب اسم الطالب وسبب التحويل.');return}
+    openSignatureStep(studentId,'referral',action=>{
+      if(action==='back'){openStudentReferral(studentId);return}
+      if(studentId){
+        const noteLabel='تحويل إلى '+data.to+' — '+data.reason;
+        state.events.push({id:'e'+Date.now(),studentId,date:state.date,module:'note',label:noteLabel,value:0,follow:false,reportType:'referral',createdAt:new Date().toISOString()});
+      }
+      const fakeClass={grade:data.grade,name:data.className,subject:''};
+      const body='<div class="panel"><div class="section-title">جهة التحويل</div><div>'+data.to+'</div></div><div class="panel mt12"><div class="section-title">سبب التحويل</div><div>'+data.reason+'</div></div><div class="panel mt12"><div class="section-title">ما تم قبل التحويل</div><div>'+(data.actions||'—')+'</div></div>';
+      openPrintWindow('تحويل طالب',data.name,fakeClass,body,state.reportSignatures,[]);
+      closeSheet();renderStudents();
     });
   };
 }
