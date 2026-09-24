@@ -1169,30 +1169,66 @@ function openParentContactReport(studentId){
 }
 
 function smartPlanSuggestions(studentId){
-  if(!studentId)return {issue:'',goal:'',actions:'',measure:''};
-  const r=reportStats(studentId), low=r.itemRows.filter(x=>x.pct<60).map(x=>x.name);
-  const lowTests=r.tests.filter(e=>Number(e.value)/Number(e.max)<.6).map(e=>e.label||'اختبار');
-  const parts=[low.length?'تدنٍ في: '+low.join('، '):'',lowTests.length?'نتائج أقل من حد الإتقان في: '+lowTests.join('، '):'',r.follow?'توجد '+r.follow+' متابعات مفتوحة':''].filter(Boolean);
-  const issue=parts.join('؛ ');
-  return {issue,goal:issue?'رفع مستوى الإتقان ومعالجة جوانب التعثر المحددة.':'',actions:issue?'شرح مركز، تدريب متدرج، نشاط علاجي قصير، ثم إعادة قياس.':'',measure:issue?'إعادة قياس قصير ومقارنة النتيجة السابقة بالجديدة.':''};
+  if(!studentId)return {source:'',issue:'',causes:'',goal:'',strategies:'',activities:'',duration:'أسبوعان',sessions:'4 جلسات قصيرة',family:'',measure:'',recommendations:'',notes:''};
+  const ctx=studentSmartContext(studentId), r=ctx.r;
+  const low=r.itemRows.filter(x=>x.pct<60).map(x=>x.name+' ('+x.pct+'%)');
+  const lowTests=r.tests.filter(e=>Number(e.value)/Number(e.max)<.6).map(e=>(e.label||'اختبار')+' '+Math.round(Number(e.value)/Number(e.max)*100)+'%');
+  const source=[lowTests.length?'نتائج الاختبارات':'',low.length?'التقييمات الصفية':'',ctx.openFollow.length?'المتابعات المسجلة':''].filter(Boolean).join(' + ');
+  const issue=[low.length?'تدنٍ في '+low.join('، '):'',lowTests.length?'نتائج دون حد الإتقان في '+lowTests.join('، '):'',ctx.openFollow.length?'متابعات مفتوحة: '+smartTextList(ctx.openFollow.map(e=>e.label)):''].filter(Boolean).join('؛ ');
+  const causes=issue?'حاجة إلى مزيد من التدريب المتدرج، وتثبيت المفهوم، ورفع عدد فرص التطبيق مع تغذية راجعة مباشرة.':'';
+  const goal=issue?'رفع مستوى إتقان المهارات المتعثرة إلى 60% فأعلى، وتحسين الاستقلالية في أداء المهمة.':'';
+  const strategies=issue?'إعادة شرح مركز، مثال محلول، تدريب متدرج، تعلم فردي أو مجموعة صغيرة، تغذية راجعة فورية.':'';
+  const activities=issue?'ورقة عمل قصيرة، سؤالان متدرجان، نشاط تطبيقي، ثم مهمة تحقق سريعة في نهاية الجلسة.':'';
+  const family=issue?'إشعار الأسرة بالمهارة المستهدفة وتزويدها بتدريب منزلي قصير عند الحاجة.':'';
+  const measure=issue?'قياس قبلي مختصر، متابعة أثناء التنفيذ، ثم قياس بعدي ومقارنة النتيجة السابقة بالجديدة.':'';
+  const recommendations=issue?'الاستمرار في المتابعة حتى ثبات الإتقان، مع تعزيز أي تحسن وتوثيق القياس البعدي.':'';
+  return {source,issue,causes,goal,strategies,activities,duration:'أسبوعان',sessions:'4 جلسات قصيرة',family,measure,recommendations,notes:''};
 }
 function openRemedialPlan(studentId){
   state.tempPlanEvidence=[];
-  const st=studentId?state.students.find(x=>x.id===studentId):null, c=st?state.classes.find(x=>x.id===st.classId):null, sug=smartPlanSuggestions(studentId);
-  openSheet('<div class="h2">خطة علاجية ذكية</div><div class="small mt8">المقترحات آلية وقابلة للتعديل بالكامل، ولا تُحفظ الخطة أو الصور تلقائيًا.</div><div class="grid2 mt16"><div><div class="label">اسم الطالب</div><input class="field" id="rpName" value="'+(st?st.name:'')+'" placeholder="اكتب الاسم"></div><div><div class="label">الصف</div><input class="field" id="rpGrade" value="'+(c?c.grade:'')+'" placeholder="الصف"></div></div><div class="label mt12">الفصل</div><input class="field" id="rpClass" value="'+(c?c.name:'')+'" placeholder="الفصل أو الشعبة"><div class="label mt12">مصدر القياس</div><input class="field" id="rpSource" placeholder="اختبار، ملاحظة صفية، واجب..."><div class="label mt12">جوانب التعثر</div><textarea class="field" id="rpIssue" placeholder="اكتب جوانب التعثر">'+sug.issue+'</textarea><div class="label mt12">الهدف العلاجي</div><textarea class="field" id="rpGoal">'+sug.goal+'</textarea><div class="label mt12">الإجراءات العلاجية</div><textarea class="field" id="rpActions">'+sug.actions+'</textarea><div class="label mt12">أداة التحقق / إعادة القياس</div><textarea class="field" id="rpMeasure">'+sug.measure+'</textarea><div class="label mt12">شواهد مؤقتة</div><input class="field" id="rpEvidence" type="file" accept="image/*" capture="environment" multiple><div class="small mt8">يمكن التصوير أو رفع صور. تستخدم في الطباعة فقط ثم تُمسح من الجلسة ولا تُرفع للخدمة السحابية.</div><div id="rpEvidenceList" class="small mt8"></div><button class="btn primary mt16" id="rpToPrint" style="width:100%">متابعة للطباعة والتوقيعات</button>');
+  const base=reportFormBase(studentId,'الخطة العلاجية الذكية','مبنية على منطق الخطة العلاجية في ركاز: اقتراح تلقائي كامل ثم تعديل المعلم.'), st=base.st, c=base.c;
+  const sug=smartPlanSuggestions(studentId);
+  openReportSheet(base.html
+    +(studentId?'<div class="smart-strip mt12"><span>قرأ ركّز أداء الطالب وحدد مسودة الخطة تلقائيًا.</span><button id="rpSmartFill">تعبئة ذكية</button></div>':'<div class="notice mt12">طالب خارجي: النموذج جاهز، وتدخل البيانات يدويًا.</div>')
+    +'<div class="form-section"><div class="form-section-title">مصدر القياس والتعثر</div><div class="label">مصدر القياس</div><input class="field" id="rpSource"><div class="label mt8">مظاهر الضعف / جوانب التعثر</div><textarea class="field" id="rpIssue"></textarea><div class="label mt8">الأسباب المحتملة</div><textarea class="field" id="rpCauses"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">الهدف والخطة</div><div class="label">الهدف العلاجي</div><textarea class="field" id="rpGoal"></textarea><div class="label mt8">الاستراتيجيات</div><textarea class="field" id="rpStrategies"></textarea><div class="label mt8">الأنشطة العلاجية</div><textarea class="field" id="rpActivities"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">المدة والتنفيذ</div><div class="grid2"><div><div class="label">المدة</div><input class="field" id="rpDuration"></div><div><div class="label">عدد الجلسات</div><input class="field" id="rpSessions"></div></div><div class="label mt8">دور الأسرة</div><textarea class="field" id="rpFamily"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">القياس والمتابعة</div><div class="label">أداة القياس / إعادة القياس</div><textarea class="field" id="rpMeasure"></textarea><div class="label mt8">التوصيات والمتابعة</div><textarea class="field" id="rpRecommendations"></textarea><div class="label mt8">ملاحظات المعلم</div><textarea class="field" id="rpNotes"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">شواهد مؤقتة</div><input class="field" id="rpEvidence" type="file" accept="image/*" capture="environment" multiple><div class="small mt8">التصوير أو الرفع للطباعة فقط. لا تُحفظ الصور في حساب الطالب أو السحابة.</div><div id="rpEvidenceList" class="small mt8"></div></div>'
+    +'<button class="btn primary mt16" id="rpToPrint" style="width:100%">معاينة الخطة والطباعة</button>');
+  wireSmartClose();
+  function fill(){
+    const x=smartPlanSuggestions(studentId);
+    q('#rpSource',sheet).value=x.source;q('#rpIssue',sheet).value=x.issue;q('#rpCauses',sheet).value=x.causes;q('#rpGoal',sheet).value=x.goal;q('#rpStrategies',sheet).value=x.strategies;q('#rpActivities',sheet).value=x.activities;q('#rpDuration',sheet).value=x.duration;q('#rpSessions',sheet).value=x.sessions;q('#rpFamily',sheet).value=x.family;q('#rpMeasure',sheet).value=x.measure;q('#rpRecommendations',sheet).value=x.recommendations;q('#rpNotes',sheet).value=x.notes;
+  }
+  fill(); if(q('#rpSmartFill',sheet))q('#rpSmartFill',sheet).onclick=fill;
   q('#rpEvidence',sheet).onchange=e=>{
     state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));
     state.tempPlanEvidence=[...e.target.files].map(f=>URL.createObjectURL(f));
     q('#rpEvidenceList',sheet).textContent=state.tempPlanEvidence.length?'تم اختيار '+state.tempPlanEvidence.length+' صورة مؤقتة.':'';
   };
   q('#rpToPrint',sheet).onclick=()=>{
-    const data={name:q('#rpName',sheet).value.trim(),grade:q('#rpGrade',sheet).value.trim(),className:q('#rpClass',sheet).value.trim(),source:q('#rpSource',sheet).value.trim(),issue:q('#rpIssue',sheet).value.trim(),goal:q('#rpGoal',sheet).value.trim(),actions:q('#rpActions',sheet).value.trim(),measure:q('#rpMeasure',sheet).value.trim()};
+    const data={
+      name:q('#srName',sheet).value.trim(),grade:q('#srGrade',sheet).value.trim(),className:q('#srClass',sheet).value.trim(),
+      source:q('#rpSource',sheet).value.trim(),issue:q('#rpIssue',sheet).value.trim(),causes:q('#rpCauses',sheet).value.trim(),goal:q('#rpGoal',sheet).value.trim(),
+      strategies:q('#rpStrategies',sheet).value.trim(),activities:q('#rpActivities',sheet).value.trim(),duration:q('#rpDuration',sheet).value.trim(),sessions:q('#rpSessions',sheet).value.trim(),
+      family:q('#rpFamily',sheet).value.trim(),measure:q('#rpMeasure',sheet).value.trim(),recommendations:q('#rpRecommendations',sheet).value.trim(),notes:q('#rpNotes',sheet).value.trim()
+    };
     if(!data.name){showToast('اكتب اسم الطالب أولًا.');return}
     openSignatureStep(studentId,'remedial',action=>{
       if(action==='back'){openRemedialPlan(studentId);return}
       const fakeClass={grade:data.grade,name:data.className,subject:''};
-      const body='<div class="panel"><div class="section-title">مصدر القياس</div><div>'+ (data.source||'—') +'</div></div><div class="panel mt12"><div class="section-title">جوانب التعثر</div><div>'+ (data.issue||'—') +'</div></div><div class="panel mt12"><div class="section-title">الهدف العلاجي</div><div>'+ (data.goal||'—') +'</div></div><div class="panel mt12"><div class="section-title">الإجراءات العلاجية</div><div>'+ (data.actions||'—') +'</div></div><div class="panel mt12"><div class="section-title">التحقق وإعادة القياس</div><div>'+ (data.measure||'—') +'</div></div>';
-      openPrintWindow('الخطة العلاجية',data.name,fakeClass,body,state.reportSignatures,state.tempPlanEvidence);
+      const body='<div class="panel"><div class="section-title">مصدر القياس</div><div>'+(data.source||'—')+'</div></div>'
+        +'<div class="panel mt12"><div class="section-title">مظاهر الضعف / جوانب التعثر</div><div>'+(data.issue||'—')+'</div></div>'
+        +'<div class="panel mt12"><div class="section-title">الأسباب المحتملة</div><div>'+(data.causes||'—')+'</div></div>'
+        +'<div class="panel mt12"><div class="section-title">الهدف العلاجي</div><div>'+(data.goal||'—')+'</div></div>'
+        +'<div class="grid2 mt12"><div class="panel"><div class="section-title">الاستراتيجيات</div><div>'+(data.strategies||'—')+'</div></div><div class="panel"><div class="section-title">الأنشطة</div><div>'+(data.activities||'—')+'</div></div></div>'
+        +'<div class="grid2 mt12"><div class="panel"><div class="section-title">المدة</div><div>'+(data.duration||'—')+'</div></div><div class="panel"><div class="section-title">الجلسات</div><div>'+(data.sessions||'—')+'</div></div></div>'
+        +'<div class="panel mt12"><div class="section-title">دور الأسرة</div><div>'+(data.family||'—')+'</div></div>'
+        +'<div class="panel mt12"><div class="section-title">القياس وإعادة القياس</div><div>'+(data.measure||'—')+'</div></div>'
+        +'<div class="panel mt12"><div class="section-title">التوصيات والمتابعة</div><div>'+(data.recommendations||'—')+'</div></div>'
+        +(data.notes?'<div class="panel mt12"><div class="section-title">ملاحظات المعلم</div><div>'+data.notes+'</div></div>':'');
+      openPrintWindow('الخطة العلاجية الذكية',data.name,fakeClass,body,state.reportSignatures,state.tempPlanEvidence);
       setTimeout(()=>{state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));state.tempPlanEvidence=[]},1500);
       closeSheet();
     });
