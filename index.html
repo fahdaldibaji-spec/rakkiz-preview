@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.16</title>
+<title>ركّز — موقع تجريبي v0.17</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -230,10 +230,8 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
             </div>
             <button class="btn soft" id="manageItems" style="min-height:38px">إعدادات</button>
           </div>
-          <div id="homeworkQuickBar" class="hidden mt12">
-            <button class="btn primary" id="allHomeworkDone" style="width:100%">الكل أحضر الواجب</button>
-          </div>
           <div class="substack" id="subItems"></div>
+          <button class="btn primary mt12" id="applySelectedToAll" style="width:100%">تطبيق البند المحدد على الجميع</button>
           <div class="notice oknotice mt12" id="quickEvalHint"></div>
         </div>
       </div>
@@ -343,6 +341,7 @@ const state={
   attendanceGrade:{max:10,mode:'decrease',present:0,absent:-1,late:-0.5,excused:0},
   events:[],
   evalFollow:{},
+  bulkContext:null,
   codeHistory:[
     {studentId:'s1',oldCode:null,newCode:'R27',date:'2026-09-01',type:'generated'}
   ],
@@ -501,11 +500,8 @@ function setAtt(sid,val){
   state.attendance[attKey(sid)]=val;
   const key='attendance|'+state.date+'|'+state.classId+'|'+sid;
   let ev=state.events.find(e=>e.eventKey===key);
-  const needsAttendanceFollow=(val==='absent');
-  if(needsAttendanceFollow){
-    if(ev){ev.label=attLabels[val];ev.value=effect;ev.follow=true;ev.resolved=false;ev.updatedAt=new Date().toISOString()}
-    else state.events.push({id:'e'+Date.now()+Math.random(),eventKey:key,studentId:sid,date:state.date,module:'attendance',label:attLabels[val],value:effect,resolved:false,createdAt:new Date().toISOString()});
-  }else if(ev){ev.resolved=true;ev.updatedAt=new Date().toISOString()}
+  if(ev){ev.label=attLabels[val];ev.value=effect;ev.follow=false;ev.resolved=true;ev.updatedAt=new Date().toISOString()}
+  else state.events.push({id:'e'+Date.now()+Math.random(),eventKey:key,studentId:sid,date:state.date,module:'attendance',label:attLabels[val],value:effect,follow:false,resolved:true,createdAt:new Date().toISOString()})
   const after=attendanceScoreFor(sid);
   if(after===before&&effect<0&&after===0)showToast(`لم يُطبّق الخصم ${effect} لأن الدرجة عند الحد الأدنى 0/${g.max}. لا يوجد رصيد سالب مؤجل.`);
   if(after===before&&effect>0&&after===g.max)showToast(`لم تُضف +${effect} لأن الدرجة عند الحد الأعلى ${g.max}/${g.max}. لا يوجد رصيد زائد مؤجل.`);
@@ -562,6 +558,15 @@ function looksNegative(sub){
   return Number(sub?.value||0)<0 || /(لم |ناقص|غياب|غائب|متأخر|مشاغب|نائم|عدم|نسي|مفقود|يحتاج|لم يحضر|غير مكتمل)/.test(name);
 }
 function evalFollowKey(studentId,main,sub){return [state.date,state.classId,studentId,main?.id||'',sub?.id||''].join('|')}
+function bulkEventKey(batchId,studentId,main){return ['bulk',batchId,studentId,main?.id||''].join('|')}
+function activeBulkFor(main){
+  const b=state.bulkContext;
+  return b&&b.date===state.date&&b.classId===state.classId&&b.module===state.module&&b.mainId===main?.id?b:null;
+}
+function currentBatchEvent(studentId,main){
+  const b=activeBulkFor(main);
+  return b?state.events.find(e=>e.eventKey===bulkEventKey(b.batchId,studentId,main)):null;
+}
 function dailyEvalKey(studentId,main){return ['daily',state.date,state.classId,studentId,main?.id||''].join('|')}
 function todayMainEvent(studentId,main){
   return state.events.find(e=>e.eventKey===dailyEvalKey(studentId,main));
@@ -569,24 +574,23 @@ function todayMainEvent(studentId,main){
 function addEvent(studentId,main,sub){
   const key=evalFollowKey(studentId,main,sub), manualFollow=!!state.evalFollow[key];
   const before=scoreFor(studentId,main), autoFollow=looksNegative(sub), needsFollow=autoFollow||manualFollow;
-  const isDailyHomework=state.module==='homework';
-  if(isDailyHomework){
-    const eventKey=dailyEvalKey(studentId,main);
+  const bulk=activeBulkFor(main);
+  if(bulk){
+    const eventKey=bulkEventKey(bulk.batchId,studentId,main);
     let ev=state.events.find(e=>e.eventKey===eventKey);
     if(ev){
       ev.subId=sub.id;ev.label=sub.name;ev.value=sub.value;ev.follow=needsFollow;ev.resolved=false;ev.updatedAt=new Date().toISOString();
     }else{
-      state.events.push({id:'e'+Date.now()+Math.random(),eventKey,studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,createdAt:new Date().toISOString()});
+      state.events.push({id:'e'+Date.now()+Math.random(),eventKey,batchId:bulk.batchId,studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,createdAt:new Date().toISOString()});
     }
   }else{
     state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,createdAt:new Date().toISOString()});
   }
   delete state.evalFollow[key];
   const after=scoreFor(studentId,main), raw=Number(sub.value||0), actual=after-before;
-  if(autoFollow)showToast('تم إنشاء تنبيه متابعة للطالب تلقائيًا بسبب الحالة السلبية.');
+  if(autoFollow)showToast('تم إنشاء تنبيه متابعة تلقائيًا بسبب الحالة السلبية.');
   if(raw<0&&actual===0&&after===0)showToast(`الدرجة عند 0/${main.max}: لم يُطبّق الخصم ${raw} ولن يُحفظ كرصد سالب مؤجل.`);
   else if(raw>0&&actual===0&&after===main.max)showToast(`الدرجة عند ${main.max}/${main.max}: لم تُضف +${raw} ولن يُحفظ رصيد زائد.`);
-  else if(actual!==raw && !isDailyHomework)showToast(`طُبق فعليًا ${actual>0?'+':''}${actual} فقط للمحافظة على الحد 0–${main.max}.`);
   renderStudents();
 }
 function followCount(studentId){
@@ -610,7 +614,6 @@ function renderTools(){
   q('#attendanceTools').classList.toggle('hidden',state.module!=='attendance');
   q('#itemTools').classList.toggle('hidden',!(state.module==='participation'||state.module==='homework'||state.module==='behavior'||state.module.startsWith('custom:')));
   q('#testTools').classList.toggle('hidden',state.module!=='tests');
-  q('#homeworkQuickBar').classList.toggle('hidden',state.module!=='homework');
   if(state.module==='attendance'){
     q('#attendanceGradeDesc').textContent=`${state.attendanceGrade.mode==='increase'?'تزايد · يبدأ 0':'تناقص · يبدأ '+state.attendanceGrade.max}/${state.attendanceGrade.max} — غياب ${state.attendanceGrade.absent>0?'+':''}${state.attendanceGrade.absent}، تأخر ${state.attendanceGrade.late>0?'+':''}${state.attendanceGrade.late}`;
     qa('.filter',q('#attendanceFilters')).forEach(b=>{
@@ -630,23 +633,23 @@ function renderTools(){
   }
 }
 q('#manageItems').addEventListener('click',()=>openManageItems());
-q('#allHomeworkDone').addEventListener('click',()=>{
-  state.module='homework';
+q('#applySelectedToAll').addEventListener('click',()=>{
   ensureItemSelection();
-  const main=moduleSource()[0];
-  if(!main)return;
-  const doneSub=main.subs.find(x=>/كامل|أحضر|منجز/.test(x.name)&&Number(x.value)>=0)||main.subs.find(x=>Number(x.value)>0);
-  const missSub=main.subs.find(x=>/لم يحضر|لم ينجز|غير محضر/.test(x.name))||main.subs.find(x=>Number(x.value)<0);
-  if(!doneSub)return;
+  const main=moduleSource().find(x=>x.id===state.selectedMain), sub=main?.subs.find(x=>x.id===state.selectedSub);
+  if(!main||!sub){showToast('اختر بندًا فرعيًا أولًا.');return}
+  const batchId='b'+Date.now();
+  state.bulkContext={batchId,date:state.date,classId:state.classId,module:state.module,mainId:main.id,baseSubId:sub.id};
   currentStudents().forEach(st=>{
-    const eventKey=dailyEvalKey(st.id,main);
-    let ev=state.events.find(e=>e.eventKey===eventKey);
-    if(ev){ev.subId=doneSub.id;ev.label=doneSub.name;ev.value=doneSub.value;ev.follow=false;ev.resolved=true;ev.updatedAt=new Date().toISOString()}
-    else state.events.push({id:'e'+Date.now()+Math.random(),eventKey,studentId:st.id,date:state.date,module:'homework',mainId:main.id,subId:doneSub.id,label:doneSub.name,value:doneSub.value,follow:false,resolved:true,createdAt:new Date().toISOString()});
+    state.events.push({
+      id:'e'+Date.now()+Math.random(),
+      eventKey:bulkEventKey(batchId,st.id,main),
+      batchId,
+      studentId:st.id,date:state.date,module:state.module,mainId:main.id,subId:sub.id,
+      label:sub.name,value:sub.value,follow:looksNegative(sub),resolved:false,createdAt:new Date().toISOString()
+    });
   });
-  if(missSub)state.selectedSub=missSub.id;
-  renderTools();renderStudents();
-  showToast('تم تسجيل الواجب للجميع. الآن اضغط فقط الطلاب الذين لم يحضروا الواجب.');
+  showToast('تم تطبيق البند على جميع الطلاب. الآن اختر بندًا آخر واضغط فقط الاستثناءات.');
+  renderStudents();
 });
 q('#attendanceGradeBtn').addEventListener('click',()=>openAttendanceGrade());
 function openAttendanceGrade(){
@@ -663,7 +666,7 @@ function openAttendanceGrade(){
       <div><div class="label">مستأذن</div><input class="field" id="agExcused" type="number" step=".25" value="${g.excused}"></div>
     </div>
     <div class="notice mt12" id="agExample"></div>
-    <div class="notice oknotice mt8">الغياب فقط ينشئ متابعة تلقائية. التأخر والمستأذن يُسجلان بدون متابعة. وعند تصحيح الغياب إلى حاضر تُغلق المتابعة تلقائيًا.</div>
+    <div class="notice oknotice mt8">الحضور يسجل الحالة والدرجة فقط، ولا ينشئ أي متابعة تلقائية للغياب أو التأخر أو المستأذن.</div>
     <button class="btn primary mt16" id="saveAttendanceGrade" style="width:100%">حفظ</button>`);
   let mode=g.mode||'decrease';
   function refreshExample(){q('#agExample',sheet).textContent=mode==='increase'?'مثال: يبدأ الطالب 0/10. إذا كانت «حاضر» +1 يصبح 1/10. أي خصم وهو عند صفر يبقى صفر ولا يُرحّل للمستقبل.':'مثال: يبدأ الطالب 10/10. إذا كان الغياب -1 يصبح 9/10. تصحيح الغياب لاحقًا يعيد احتساب الدرجة تلقائيًا.'}
@@ -727,8 +730,8 @@ function renderStudents(){
         </div>
       </div>`;
     }
-    const todayEv=main?todayMainEvent(st.id,main):null;
-    const isTodayNegative=state.module==='homework'&&todayEv&&Number(todayEv.value)<0;
+    const todayEv=main?currentBatchEvent(st.id,main):null;
+    const isTodayNegative=!!(todayEv&&Number(todayEv.value)<0);
     return `<div class="student eval-ready ${isTodayNegative?'today-negative':''}" data-quick-eval="${st.id}">
       <div class="row between">
         <div>
