@@ -1,0 +1,160 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>ركّز — موقع تجريبي</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css"></head><body>
+<div class="app" id="app">
+  <header class="header">
+    <div class="brandrow">
+      <div class="brand-lockup" aria-label="هوية تطبيق ركّز">
+        <img class="brand-logo" src="assets/rakkiz_logo.svg" alt="شعار ركّز">
+        <div class="brand-side"><strong>تطبيق المعلم</strong><span>أبسط · أوضح · أسرع</span></div>
+      </div>
+      <button class="iconbtn" id="headerBack" aria-label="رجوع" title="رجوع">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+    </div>
+  </header>
+  <main class="main">
+
+    <section data-view="home">
+      <div class="h1">مرحبًا بك</div>
+      <div class="small mt8">نسخة تجريبية تجمع التحضير والمتابعة والدرجات والتصحيح.</div>
+      <div class="hero mt16" id="lessonHero">
+        <div class="row between"><div id="lessonStatus" style="opacity:.82;font-size:13px;font-weight:800">الحصة الحالية</div><span class="timepill" id="lessonTime">—</span></div>
+        <div id="lessonClass" style="font-family:'IBM Plex Sans Arabic';font-size:21px;font-weight:800;margin-top:5px">—</div>
+        <div id="lessonSubject" style="font-size:13px;opacity:.88;font-weight:700;margin-top:2px">—</div>
+        <div class="hero-actions"><button class="btn" id="openLessonBtn" style="background:#fff;color:var(--green)">فتح الحصة</button><button class="btn" id="manageScheduleBtn" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.24)">إدارة الجدول</button></div>
+      </div>
+      <div class="grid2 mt12">
+        <button class="toolcard" data-go="followup"><strong>التحضير</strong><span>حضور ومتابعة سريعة للحصة</span></button>
+        <button class="toolcard" id="homeScheduleBtn"><strong>جدولي</strong><span>الحصص والفصول والتوقيت</span></button>
+        <button class="toolcard" data-go="correction"><strong>التصحيح الإلكتروني</strong><span>نماذج الإجابة وتصحيح الأوراق</span></button>
+        <button class="toolcard" data-go="students"><strong>طلابي</strong><span>الصفوف والفصول وإدارة الطلاب</span></button>
+      </div>
+      <div class="card pad mt12">
+        <div class="section-title">آخر المتابعات</div>
+        <div class="row between"><span class="sname">محمد أحمد</span><span class="badge warn">⚠ واجب ناقص</span></div>
+        <div class="hr"></div>
+        <div class="row between"><span class="sname">خالد حسن</span><span class="badge red">سلوك يحتاج متابعة</span></div>
+      </div>
+    </section>
+
+    <section data-view="followup" class="hidden">
+      <div class="row between">
+        <div>
+          <div class="h1">التحضير والمتابعة</div>
+          <div class="class-context" id="followupClassTitle">—</div>
+        </div>
+        <span class="badge" id="dayState">اليوم</span>
+      </div>
+
+      <div class="card datebox mt12">
+        <div class="date-main" id="gregDate"></div>
+        <div class="date-hijri" id="hijriDate"></div>
+        <div class="date-nav">
+          <button id="nextDay" aria-label="اليوم التالي">‹</button>
+          <button id="todayBtn">اليوم</button>
+          <button id="prevDay" aria-label="اليوم السابق">›</button>
+        </div>
+      </div>
+
+      <div class="tabs mt12" id="moduleTabs">
+        <button class="tab active" data-module="attendance">الحضور</button>
+        <button class="tab" data-module="participation">المشاركة</button>
+        <button class="tab" data-module="homework">الواجب</button>
+        <button class="tab" data-module="behavior">السلوك</button>
+        <button class="tab" data-module="tests">الاختبارات</button>
+        <button class="tab add" id="addMainItem">+</button>
+      </div>
+
+      <div id="attendanceTools">
+        <div class="card pad mb12">
+          <div class="row between">
+            <div>
+              <div class="section-title" style="margin:0">درجة الحضور</div>
+              <div class="small" id="attendanceGradeDesc">الدرجة الكاملة 10 — ويخصم منها حسب الحالة</div>
+            </div>
+            <button class="btn soft" id="attendanceGradeBtn" style="min-height:38px">تعديل الدرجة</button>
+          </div>
+        </div>
+        <div class="filters" id="attendanceFilters">
+          <button class="filter active" data-filter="all">الكل</button>
+          <button class="filter" data-filter="present">حاضر</button>
+          <button class="filter" data-filter="absent">غائب</button>
+          <button class="filter" data-filter="late">متأخر</button>
+          <button class="filter" data-filter="excused">مستأذن</button>
+        </div>
+      </div>
+
+      <div id="itemTools" class="hidden">
+        <div class="card pad">
+          <div class="row between">
+            <div>
+              <div class="section-title" style="margin:0">البند الحالي</div>
+              <div class="small" id="itemModeDesc"></div>
+            </div>
+            <button class="btn soft" id="manageItems" style="min-height:38px">الدرجة والبنود</button>
+          </div>
+          <div class="chips mt12" id="mainItems"></div>
+          <div class="substack" id="subItems"></div>
+        </div>
+      </div>
+
+      <div id="testTools" class="hidden">
+        <div class="card pad">
+          <div class="row between">
+            <div><div class="section-title" style="margin:0">الاختبارات</div><div class="small">إدخال درجات ذكي</div></div>
+            <button class="btn primary" id="addGradesBtn" style="min-height:40px">+ إضافة درجات</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card pad mt12" id="studentList"></div>
+    </section>
+
+    <section data-view="students" class="hidden">
+      <div class="h1">الطلاب</div>
+      <div class="small mt8">اختر الفصل أولًا، ثم أدر طلابه.</div>
+      <div id="classesGrid" class="mt12"></div>
+      <div id="classDetail" class="hidden mt12"></div>
+    </section>
+
+    <section data-view="correction" class="hidden">
+      <div class="h1">التصحيح الإلكتروني</div>
+      <div class="notice mt12">هذا المسار مستقل عن «الاختبارات» داخل التحضير. هنا نموذج الإجابة، تصوير الأوراق، OMR، المراجعة والنتائج.</div>
+      <div class="card pad mt12">
+        <div class="row between"><div><div class="h2">اختبار العلوم — الوحدة الأولى</div><div class="small">ثالث متوسط — 3/أ</div></div><span class="badge">31/32</span></div>
+        <div class="notice mt12">ورقة واحدة تحتاج مراجعة — السؤال 17.</div>
+        <button class="btn primary mt12" style="width:100%">فتح المراجعة</button>
+      </div>
+    </section>
+
+    <section data-view="account" class="hidden">
+      <div class="h1">الحساب</div>
+      <div class="card pad mt12">
+        <div class="row between"><div><strong>الجدول والحصص</strong><div class="small mt8">يعرض ركّز الحصة المناسبة تلقائيًا حسب اليوم والوقت.</div></div><button class="btn brown" id="accountScheduleBtn" style="min-height:38px">إدارة</button></div>
+      </div>
+      <div class="card pad mt12">
+        <div class="row between"><strong>الخدمة السحابية</strong><span class="badge">مفعلة</span></div>
+        <div class="hr"></div>
+        <div class="row between"><strong>ركاز</strong><span class="small">اختياري</span></div>
+        <div class="hr"></div>
+        <div class="row between"><strong>نور</strong><span class="small">اختياري</span></div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="nav">
+    <button class="active" data-nav="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/></svg><span>الرئيسية</span></button>
+    <button data-nav="followup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4m8-4v4m-8 6 2 2 5-5"/></svg><span>التحضير</span></button>
+    <button data-nav="correction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="m8 12 2.5 2.5L16 9"/></svg><span>التصحيح</span></button>
+    <button data-nav="students"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5A5 5 0 0 1 21 19"/></svg><span>الطلاب</span></button>
+    <button data-nav="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg><span>الحساب</span></button>
+  </nav>
+
+  <div id="overlay" class="overlay hidden" aria-live="polite">
+    <div class="sheet">
+      <div class="sheetbar"></div>
+      <div id="sheetContent"></div>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script></body></html>
