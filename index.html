@@ -1242,28 +1242,35 @@ function externalStudentBase(studentId){
 }
 function openExecutionEvidence(studentId){
   state.tempPlanEvidence=[];
-  const {st,c}=externalStudentBase(studentId);
-  openSheet('<div class="h2">شاهد تنفيذ</div><div class="small mt8">توثيق مختصر للتنفيذ، ويمكن إرفاق صور مؤقتة للطباعة فقط.</div>'
-    +'<div class="grid2 mt16"><div><div class="label">اسم الطالب</div><input class="field" id="evName" value="'+(st?st.name:'')+'" placeholder="اسم الطالب"></div><div><div class="label">الصف</div><input class="field" id="evGrade" value="'+(c?c.grade:'')+'" placeholder="الصف"></div></div>'
-    +'<div class="label mt12">الفصل</div><input class="field" id="evClass" value="'+(c?c.name:'')+'" placeholder="الفصل أو الشعبة">'
-    +'<div class="label mt12">عنوان الشاهد / النشاط</div><input class="field" id="evTitle" placeholder="مثال: تنفيذ نشاط علاجي">'
-    +'<div class="label mt12">وصف التنفيذ</div><textarea class="field" id="evDesc" placeholder="ماذا تم تنفيذه؟"></textarea>'
-    +'<div class="label mt12">النتيجة أو الأثر</div><textarea class="field" id="evResult" placeholder="ما أثر التنفيذ على الطالب؟"></textarea>'
-    +'<div class="label mt12">صور الشاهد</div><input class="field" id="evFiles" type="file" accept="image/*" capture="environment" multiple>'
-    +'<div class="small mt8">الصور مؤقتة، تستخدم للطباعة فقط ولا تُحفظ في الخدمة السحابية.</div><div id="evFilesCount" class="small mt8"></div>'
-    +'<button class="btn primary mt16" id="evPrint" style="width:100%">متابعة للطباعة والتوقيعات</button>');
+  const base=reportFormBase(studentId,'شاهد تنفيذ','توثيق احترافي للتنفيذ مع تعبئة ذكية من سجل الطالب وصور مؤقتة للطباعة.'),ctx=base.ctx;
+  openReportSheet(base.html
+    +(studentId?'<div class="smart-strip mt12"><span>يمكن بناء مسودة الشاهد من المتابعات المسجلة.</span><button id="evSmartFill">تعبئة ذكية</button></div>':'<div class="notice mt12">طالب خارجي: أدخل تفاصيل التنفيذ يدويًا.</div>')
+    +'<div class="form-section"><div class="form-section-title">بيانات التنفيذ</div><div class="label">عنوان الشاهد / النشاط</div><input class="field" id="evTitle" placeholder="مثال: تنفيذ نشاط علاجي"><div class="label mt8">وصف التنفيذ</div><textarea class="field" id="evDesc"></textarea><div class="label mt8">النتيجة أو الأثر</div><textarea class="field" id="evResult"></textarea><div class="label mt8">التوصية التالية</div><textarea class="field" id="evNext"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">صور الشاهد</div><input class="field" id="evFiles" type="file" accept="image/*" capture="environment" multiple><div class="small mt8">الصور تستخدم في الطباعة فقط ثم تُمسح من الجلسة، ولا تُحفظ في السحابة.</div><div id="evFilesCount" class="small mt8"></div></div>'
+    +'<button class="btn primary mt16" id="evPrint" style="width:100%">معاينة الشاهد والطباعة</button>');
+  wireSmartClose();
+  function fill(){
+    if(!ctx)return;
+    const target=smartTextList(ctx.openFollow.map(e=>e.label).concat(ctx.negatives),'متابعة الأداء العام');
+    const positives=smartTextList(ctx.positives,'');
+    q('#evTitle',sheet).value='شاهد تنفيذ — '+target.split('،')[0];
+    q('#evDesc',sheet).value='تم تنفيذ متابعة تعليمية مركزة تستهدف: '+target+'. شمل التنفيذ تدريبًا قصيرًا وتغذية راجعة مباشرة للطالب.';
+    q('#evResult',sheet).value=positives?'أظهرت المتابعة تحسنًا مسجلًا في: '+positives+'.':'لم تُسجل نتيجة بعد في النظام؛ عدّل هذه العبارة بعد التنفيذ بما يطابق الأثر الفعلي.';
+    q('#evNext',sheet).value=ctx.openFollow.length?'الاستمرار في المتابعة وإعادة التحقق في الحصة القادمة.':'الاستمرار في التعزيز والمحافظة على التحسن.';
+  }
+  fill();if(q('#evSmartFill',sheet))q('#evSmartFill',sheet).onclick=fill;
   q('#evFiles',sheet).onchange=e=>{
     state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));
     state.tempPlanEvidence=[...e.target.files].map(f=>URL.createObjectURL(f));
     q('#evFilesCount',sheet).textContent=state.tempPlanEvidence.length?'تم اختيار '+state.tempPlanEvidence.length+' صورة مؤقتة.':'';
   };
   q('#evPrint',sheet).onclick=()=>{
-    const data={name:q('#evName',sheet).value.trim(),grade:q('#evGrade',sheet).value.trim(),className:q('#evClass',sheet).value.trim(),title:q('#evTitle',sheet).value.trim(),desc:q('#evDesc',sheet).value.trim(),result:q('#evResult',sheet).value.trim()};
+    const data={name:q('#srName',sheet).value.trim(),grade:q('#srGrade',sheet).value.trim(),className:q('#srClass',sheet).value.trim(),title:q('#evTitle',sheet).value.trim(),desc:q('#evDesc',sheet).value.trim(),result:q('#evResult',sheet).value.trim(),next:q('#evNext',sheet).value.trim()};
     if(!data.name){showToast('اكتب اسم الطالب أولًا.');return}
     openSignatureStep(studentId,'evidence',action=>{
       if(action==='back'){openExecutionEvidence(studentId);return}
       const fakeClass={grade:data.grade,name:data.className,subject:''};
-      const body='<div class="panel"><div class="section-title">عنوان الشاهد</div><div>'+(data.title||'—')+'</div></div><div class="panel mt12"><div class="section-title">وصف التنفيذ</div><div>'+(data.desc||'—')+'</div></div><div class="panel mt12"><div class="section-title">النتيجة أو الأثر</div><div>'+(data.result||'—')+'</div></div>';
+      const body='<div class="panel"><div class="section-title">عنوان الشاهد</div><div>'+(data.title||'—')+'</div></div><div class="panel mt12"><div class="section-title">وصف التنفيذ</div><div>'+(data.desc||'—')+'</div></div><div class="panel mt12"><div class="section-title">النتيجة أو الأثر</div><div>'+(data.result||'—')+'</div></div><div class="panel mt12"><div class="section-title">التوصية التالية</div><div>'+(data.next||'—')+'</div></div>';
       openPrintWindow('شاهد تنفيذ',data.name,fakeClass,body,state.reportSignatures,state.tempPlanEvidence);
       setTimeout(()=>{state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));state.tempPlanEvidence=[]},1500);
       closeSheet();
@@ -1271,16 +1278,25 @@ function openExecutionEvidence(studentId){
   };
 }
 function openStudentReferral(studentId){
-  const {st,c}=externalStudentBase(studentId);
-  openSheet('<div class="h2">تحويل طالب</div><div class="small mt8">إذا كان الطالب من ركّز فسيتم ربط التحويل بسجل الطالب وملاحظاته.</div>'
-    +'<div class="grid2 mt16"><div><div class="label">اسم الطالب</div><input class="field" id="rfName" value="'+(st?st.name:'')+'" placeholder="اسم الطالب"></div><div><div class="label">الصف</div><input class="field" id="rfGrade" value="'+(c?c.grade:'')+'" placeholder="الصف"></div></div>'
-    +'<div class="label mt12">الفصل</div><input class="field" id="rfClass" value="'+(c?c.name:'')+'" placeholder="الفصل أو الشعبة">'
-    +'<div class="label mt12">جهة التحويل</div><select class="field" id="rfTo"><option value="الوكيل">الوكيل</option><option value="الموجه الطلابي">الموجه الطلابي</option><option value="إدارة المدرسة">إدارة المدرسة</option><option value="أخرى">أخرى</option></select>'
-    +'<div class="label mt12">سبب التحويل</div><textarea class="field" id="rfReason" placeholder="سبب تحويل الطالب..."></textarea>'
-    +'<div class="label mt12">ما تم مع الطالب قبل التحويل</div><textarea class="field" id="rfActions" placeholder="تنبيه، تواصل، متابعة، ملاحظات..."></textarea>'
-    +'<button class="btn primary mt16" id="rfPrint" style="width:100%">متابعة للطباعة والتوقيعات</button>');
+  const base=reportFormBase(studentId,'تحويل طالب','إحالة منظمة للوكيل أو الموجه الطلابي أو الإدارة، مع اقتراح ذكي من سجل الطالب.'),ctx=base.ctx;
+  openReportSheet(base.html
+    +(studentId?'<div class="smart-strip mt12"><span>يمكن اقتراح سبب التحويل والإجراءات السابقة من السجل.</span><button id="rfSmartFill">تعبئة ذكية</button></div>':'<div class="notice mt12">طالب خارجي: أدخل سبب التحويل والإجراءات يدويًا.</div>')
+    +'<div class="form-section"><div class="form-section-title">بيانات التحويل</div><div class="label">جهة التحويل</div><select class="field" id="rfTo"><option value="الوكيل">الوكيل</option><option value="الموجه الطلابي">الموجه الطلابي</option><option value="إدارة المدرسة">إدارة المدرسة</option><option value="أخرى">أخرى</option></select><div class="label mt8">سبب التحويل</div><textarea class="field" id="rfReason"></textarea><div class="label mt8">ما تم مع الطالب قبل التحويل</div><textarea class="field" id="rfActions"></textarea><div class="label mt8">المطلوب من جهة التحويل</div><textarea class="field" id="rfRequest"></textarea></div>'
+    +'<button class="btn primary mt16" id="rfPrint" style="width:100%">معاينة التحويل والطباعة</button>');
+  wireSmartClose();
+  function fill(){
+    if(!ctx)return;
+    const attendance=[];
+    if(ctx.r.counts.absent)attendance.push('غياب '+ctx.r.counts.absent);
+    if(ctx.r.counts.late)attendance.push('تأخر '+ctx.r.counts.late);
+    const reasons=ctx.negativeBehavior.concat(ctx.openFollow.map(e=>e.label),attendance,ctx.notes);
+    q('#rfReason',sheet).value=smartTextList(reasons,'لا توجد أسباب موثقة كافية في السجل؛ اكتب سبب التحويل يدويًا.');
+    q('#rfActions',sheet).value=ctx.notes.length?'سبق توثيق الملاحظات التالية: '+smartTextList(ctx.notes)+'.':'تمت متابعة الطالب داخل الصف، ويُستكمل هنا ما تم فعليًا قبل التحويل.';
+    q('#rfRequest',sheet).value='الاطلاع على الحالة واتخاذ الإجراء التربوي المناسب، مع إفادة المعلم بما يتم عند الحاجة.';
+  }
+  fill();if(q('#rfSmartFill',sheet))q('#rfSmartFill',sheet).onclick=fill;
   q('#rfPrint',sheet).onclick=()=>{
-    const data={name:q('#rfName',sheet).value.trim(),grade:q('#rfGrade',sheet).value.trim(),className:q('#rfClass',sheet).value.trim(),to:q('#rfTo',sheet).value,reason:q('#rfReason',sheet).value.trim(),actions:q('#rfActions',sheet).value.trim()};
+    const data={name:q('#srName',sheet).value.trim(),grade:q('#srGrade',sheet).value.trim(),className:q('#srClass',sheet).value.trim(),to:q('#rfTo',sheet).value,reason:q('#rfReason',sheet).value.trim(),actions:q('#rfActions',sheet).value.trim(),request:q('#rfRequest',sheet).value.trim()};
     if(!data.name||!data.reason){showToast('اكتب اسم الطالب وسبب التحويل.');return}
     openSignatureStep(studentId,'referral',action=>{
       if(action==='back'){openStudentReferral(studentId);return}
@@ -1289,7 +1305,7 @@ function openStudentReferral(studentId){
         state.events.push({id:'e'+Date.now(),studentId,date:state.date,module:'note',label:noteLabel,value:0,follow:false,reportType:'referral',createdAt:new Date().toISOString()});
       }
       const fakeClass={grade:data.grade,name:data.className,subject:''};
-      const body='<div class="panel"><div class="section-title">جهة التحويل</div><div>'+data.to+'</div></div><div class="panel mt12"><div class="section-title">سبب التحويل</div><div>'+data.reason+'</div></div><div class="panel mt12"><div class="section-title">ما تم قبل التحويل</div><div>'+(data.actions||'—')+'</div></div>';
+      const body='<div class="panel"><div class="section-title">جهة التحويل</div><div>'+data.to+'</div></div><div class="panel mt12"><div class="section-title">سبب التحويل</div><div>'+data.reason+'</div></div><div class="panel mt12"><div class="section-title">ما تم قبل التحويل</div><div>'+(data.actions||'—')+'</div></div><div class="panel mt12"><div class="section-title">المطلوب من جهة التحويل</div><div>'+(data.request||'—')+'</div></div>';
       openPrintWindow('تحويل طالب',data.name,fakeClass,body,state.reportSignatures,[]);
       closeSheet();renderStudents();
     });
