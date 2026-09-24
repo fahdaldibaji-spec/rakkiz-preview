@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.17</title>
+<title>ركّز — موقع تجريبي v0.18</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -74,7 +74,7 @@ button{cursor:pointer}
 .mini.warn{background:var(--amberbg);color:var(--amber)}
 .mini.good{background:var(--green3);color:var(--green)}
 .student:last-child{border-bottom:0}
-.sname{font-family:"Almarai","Cairo",Tahoma,sans-serif;font-size:16px;font-weight:800;line-height:1.75;letter-spacing:-.15px}
+.sname{font-family:"Almarai","Cairo",Tahoma,sans-serif;font-size:16px;font-weight:800;line-height:1.75;letter-spacing:-.15px;user-select:none;-webkit-user-select:none}
 .meta{font-size:12.5px;color:var(--muted);font-weight:650;margin-top:2px}
 .badge{border-radius:999px;padding:5px 8px;font-size:12px;font-weight:800;background:var(--green3);color:var(--green);white-space:nowrap}
 .badge.warn{background:var(--amberbg);color:var(--amber)}
@@ -231,7 +231,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
             <button class="btn soft" id="manageItems" style="min-height:38px">إعدادات</button>
           </div>
           <div class="substack" id="subItems"></div>
-          <button class="btn primary mt12" id="applySelectedToAll" style="width:100%">تطبيق البند المحدد على الجميع</button>
+          <button class="btn soft mt12" id="applySelectedToAll" style="width:100%">تطبيق على الجميع — اختياري</button>
           <div class="notice oknotice mt12" id="quickEvalHint"></div>
         </div>
       </div>
@@ -628,7 +628,11 @@ function renderTools(){
     q('#itemModeDesc').textContent=main?`${itemMode(main)==='increase'?'تزايد · يبدأ 0':'تناقص · يبدأ '+main.max}/${main.max}`:'';
     q('#subItems').innerHTML=main?main.subs.map(x=>`<button class="subitem ${x.id===state.selectedSub?'active':''} ${x.value<0?'negative':''}" data-sub="${x.id}"><span>${x.name}</span><span class="subvalue">${x.value>0?'+':''}${x.value}</span></button>`).join(''):'';
     const activeSub=main?.subs.find(x=>x.id===state.selectedSub);
-    q('#quickEvalHint').textContent=activeSub?`المحدد: ${activeSub.name} ${activeSub.value>0?'+':''}${activeSub.value} — اضغط اسم الطالب لتسجيله مباشرة.`:'اختر بندًا فرعيًا أولًا.';
+    q('#quickEvalHint').textContent=activeSub
+      ? (state.module==='participation'
+          ? `المحدد: ${activeSub.name} ${activeSub.value>0?'+':''}${activeSub.value} — اضغط الطالب للتسجيل، أو اضغط مطولًا على اسمه لاختيار مشاركة أخرى. «تطبيق على الجميع» اختياري.`
+          : `المحدد: ${activeSub.name} ${activeSub.value>0?'+':''}${activeSub.value} — اضغط الطالب للتسجيل. «تطبيق على الجميع» اختياري.`)
+      : 'اختر بندًا فرعيًا أولًا.';
     qa('[data-sub]',q('#subItems')).forEach(b=>b.onclick=()=>{state.selectedSub=b.dataset.sub;renderTools();renderStudents()});
   }
 }
@@ -683,6 +687,47 @@ q('#addGradesBtn').addEventListener('click',()=>openAddGrades());
 
 function noteCount(studentId){
   return state.events.filter(e=>e.studentId===studentId&&e.module==='note').length;
+}
+function openParticipationQuick(studentId){
+  const st=state.students.find(x=>x.id===studentId), main=state.items.participation?.[0];
+  if(!st||!main)return;
+  openSheet(`<div class="row between"><div><div class="h2">مشاركة سريعة — ${st.name}</div><div class="small">اختر نوع المشاركة فقط.</div></div><button class="iconbtn" id="pqClose">×</button></div>
+    <div class="substack mt16">${main.subs.map(sub=>`<button class="subitem ${sub.value<0?'negative':''}" data-pq-sub="${sub.id}"><span>${sub.name}</span><span class="subvalue">${sub.value>0?'+':''}${sub.value}</span></button>`).join('')}</div>`);
+  q('#pqClose',sheet).onclick=closeSheet;
+  qa('[data-pq-sub]',sheet).forEach(b=>b.onclick=()=>{
+    const sub=main.subs.find(x=>x.id===b.dataset.pqSub);
+    if(!sub)return;
+    const oldModule=state.module;
+    state.module='participation';
+    addEvent(studentId,main,sub);
+    state.module=oldModule;
+    closeSheet();
+    showToast(`تم تسجيل «${sub.name} ${sub.value>0?'+':''}${sub.value}» للطالب ${st.name}.`,'');
+  });
+}
+function bindParticipationLongPress(box){
+  if(state.module!=='participation')return;
+  qa('[data-quick-eval]',box).forEach(row=>{
+    const name=row.querySelector('.sname');
+    if(!name)return;
+    let timer=null, fired=false;
+    const clear=()=>{if(timer){clearTimeout(timer);timer=null}};
+    const start=e=>{
+      fired=false;
+      clear();
+      timer=setTimeout(()=>{
+        fired=true;
+        row.dataset.skipQuickClick='1';
+        if(navigator.vibrate)navigator.vibrate(25);
+        openParticipationQuick(row.dataset.quickEval);
+      },520);
+    };
+    name.addEventListener('pointerdown',start);
+    name.addEventListener('pointerup',clear);
+    name.addEventListener('pointercancel',clear);
+    name.addEventListener('pointerleave',clear);
+    name.addEventListener('contextmenu',e=>e.preventDefault());
+  });
 }
 function renderStudents(){
   const box=q('#studentList');
@@ -750,9 +795,11 @@ function renderStudents(){
   qa('[data-att]',box).forEach(b=>b.onclick=e=>{e.stopPropagation();cycleAtt(b.dataset.att)});
   qa('[data-student-detail]',box).forEach(b=>b.onclick=e=>{e.stopPropagation();openStudentCard(b.dataset.studentDetail)});
   qa('[data-quick-eval]',box).forEach(row=>row.onclick=()=>{
+    if(row.dataset.skipQuickClick==='1'){delete row.dataset.skipQuickClick;return}
     if(!main||!sub){showToast('اختر بندًا فرعيًا أولًا.');return}
     addEvent(row.dataset.quickEval,main,sub);
   });
+  bindParticipationLongPress(box);
   qa('[data-student-row]',box).forEach(row=>row.onclick=()=>openStudentEvaluation(row.dataset.studentRow,main,sub));
 }
 function openStudentEvaluation(id,main,sub){
