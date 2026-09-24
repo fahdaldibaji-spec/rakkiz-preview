@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.11</title>
+<title>ركّز — موقع تجريبي v0.12</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -44,11 +44,10 @@ button{cursor:pointer}
 .gap8{gap:8px}
 .mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mb12{margin-bottom:12px}
 .pad{padding:14px}
-.tabs{display:flex;gap:8px;overflow-x:auto;padding:3px 1px 9px;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{white-space:nowrap;min-height:42px;padding:0 14px;border-radius:13px;border:1px solid var(--line);background:#fff;color:#587072;font-weight:800}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;overflow:visible;padding:3px 0 10px}
+.tab{white-space:nowrap;min-height:40px;padding:0 13px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#587072;font-weight:800}
 .tab.active{background:var(--green);color:#fff;border-color:var(--green)}
-.tab.add{min-width:42px;padding:0;color:var(--green);background:var(--green3)}
+.tab.add{padding:0 13px;color:var(--green);background:linear-gradient(135deg,var(--green3),var(--brownbg));border-color:#cddfdb}
 .datebox{padding:13px 14px}
 .date-main{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-weight:800;font-size:16px}
 .date-hijri{font-size:13px;color:var(--gold);font-weight:800;margin-top:2px}
@@ -180,7 +179,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
         <button class="tab" data-module="homework">الواجب</button>
         <button class="tab" data-module="behavior">السلوك</button>
         <button class="tab" data-module="tests">الاختبارات</button>
-        <button class="tab add" id="addMainItem">+</button>
+        <button class="tab add" id="addMainItem">+ بند</button>
       </div>
 
       <div id="attendanceTools">
@@ -206,12 +205,11 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
         <div class="card pad">
           <div class="row between">
             <div>
-              <div class="section-title" style="margin:0">البند الحالي</div>
+              <div class="section-title" id="itemTitle" style="margin:0"></div>
               <div class="small" id="itemModeDesc"></div>
             </div>
-            <button class="btn soft" id="manageItems" style="min-height:38px">الدرجة والبنود</button>
+            <button class="btn soft" id="manageItems" style="min-height:38px">إعدادات</button>
           </div>
-          <div class="chips mt12" id="mainItems"></div>
           <div class="substack" id="subItems"></div>
         </div>
       </div>
@@ -229,8 +227,10 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
     </section>
 
     <section data-view="students" class="hidden">
-      <div class="h1">الطلاب</div>
-      <div class="small mt8">اختر الفصل أولًا، ثم أدر طلابه.</div>
+      <div class="row between">
+        <div><div class="h1">الطلاب</div><div class="small mt8">اختر الفصل أولًا، ثم أدر طلابه.</div></div>
+        <button class="btn soft" id="importNoorBtn" style="min-height:40px">استيراد من نور</button>
+      </div>
       <div id="classesGrid" class="mt12"></div>
       <div id="classDetail" class="hidden mt12"></div>
     </section>
@@ -533,7 +533,7 @@ function renderModuleTabs(){
     <button class="tab ${state.module==='behavior'?'active':''}" data-module="behavior">السلوك</button>
     <button class="tab ${state.module==='tests'?'active':''}" data-module="tests">الاختبارات</button>
     ${state.items.custom.map(c=>`<button class="tab ${state.module==='custom:'+c.id?'active':''}" data-module="custom:${c.id}">${c.name}</button>`).join('')}
-    <button class="tab add" id="addMainItem">+</button>`;
+    <button class="tab add" id="addMainItem">+ بند</button>`;
   qa('[data-module]',box).forEach(b=>b.addEventListener('click',()=>{state.module=b.dataset.module;renderFollowup()}));
   q('#addMainItem',box).addEventListener('click',openAddMainItem);
 }
@@ -551,9 +551,8 @@ function renderTools(){
   if(!q('#itemTools').classList.contains('hidden')){
     ensureItemSelection();
     const src=moduleSource(), main=src.find(x=>x.id===state.selectedMain);
-    q('#itemModeDesc').textContent=main?`${main.name} · ${itemMode(main)==='increase'?'تزايد: يبدأ 0':'تناقص: يبدأ '+main.max}/${main.max} · الحد 0–${main.max}`:'لا توجد بنود';
-    q('#mainItems').innerHTML=src.map(x=>`<button class="chip ${x.id===state.selectedMain?'active':''}" data-main="${x.id}">${x.name} /${x.max}</button>`).join('');
-    qa('[data-main]',q('#mainItems')).forEach(b=>b.onclick=()=>{state.selectedMain=b.dataset.main;state.selectedSub=null;renderTools();renderStudents()});
+    q('#itemTitle').textContent=main?main.name:'';
+    q('#itemModeDesc').textContent=main?`${itemMode(main)==='increase'?'تزايد · يبدأ 0':'تناقص · يبدأ '+main.max}/${main.max}`:'';
     q('#subItems').innerHTML=main?main.subs.map(x=>`<button class="subitem ${x.id===state.selectedSub?'active':''} ${x.value<0?'negative':''}" data-sub="${x.id}"><span>${x.name}</span><span class="subvalue">${x.value>0?'+':''}${x.value}</span></button>`).join(''):'';
     qa('[data-sub]',q('#subItems')).forEach(b=>b.onclick=()=>{state.selectedSub=b.dataset.sub;renderTools()});
   }
