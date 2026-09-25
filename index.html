@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.68</title>
+<title>ركّز — موقع تجريبي v0.69</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -435,6 +435,9 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
         <div class="row between"><div><strong>الجدول والحصص</strong><div class="small mt8">يعرض ركّز الحصة المناسبة تلقائيًا حسب اليوم والوقت.</div></div><button class="btn brown" id="accountScheduleBtn" style="min-height:38px">إدارة</button></div>
       </div>
       <div class="card pad mt12">
+        <div class="row between"><div><strong>تقويم المدرسة</strong><div class="small mt8" id="schoolCalendarSummary">أيام الدراسة والإجازات</div></div><button class="btn brown" id="schoolCalendarBtn" style="min-height:38px">إدارة</button></div>
+      </div>
+      <div class="card pad mt12">
         <div class="row between">
           <div><strong>التقارير والترويسة</strong><div class="small mt8" id="reportSettingsSummary">الشعارات · بيانات المدرسة · التوقيعات</div></div>
           <button class="btn brown" id="reportSettingsBtn" style="min-height:38px">إدارة</button>
@@ -588,6 +591,11 @@ function loadReportPrefs(){
 loadReportPrefs();loadSchoolCalendar();
 function renderAccount(){
   const nameEl=q('#accountTeacherName');if(nameEl)nameEl.textContent=teacherDisplayName();
+  const calEl=q('#schoolCalendarSummary');
+  if(calEl){
+    const cal=schoolCalendar(),days=(cal.workdays||[]).slice().sort((a,b)=>a-b).map(d=>dayNames[d]).join('، ');
+    calEl.textContent=days+' · '+(cal.holidays||[]).length+' إجازة مضافة';
+  }
   const el=q('#reportSettingsSummary');if(!el)return;
   const b=state.reportBranding, parts=[];
   if(b.showMinistry&&b.ministryLogo)parts.push('شعار الوزارة');
@@ -627,6 +635,35 @@ function addTempEvidenceFiles(files){
   picked.slice(0,remaining).forEach(f=>state.tempPlanEvidence.push(URL.createObjectURL(f)));
   if(picked.length>remaining)showToast('الحد الأقصى 4 صور للشواهد.');
 }
+function openSchoolCalendarSettings(){
+  const cal=schoolCalendar();
+  openSheet('<div class="row between"><div><div class="h2">تقويم المدرسة</div><div class="small mt8">يستخدمه ركّز للحضور الأسبوعي والإجازات.</div></div><button class="iconbtn" id="schoolCalClose">×</button></div>'
+    +'<div class="section-title mt16">أيام الدراسة</div>'
+    +'<div class="chips" id="schoolWorkdays">'+dayNames.map((name,i)=>'<button class="chip '+((cal.workdays||[]).includes(i)?'active':'')+'" data-school-day="'+i+'">'+name+'</button>').join('')+'</div>'
+    +'<div class="notice mt12">السعودية افتراضيًا: الأحد إلى الخميس. يمكن للمدرسة تغييره إلى 5 أو 6 أو 7 أيام حسب نظامها.</div>'
+    +'<div class="section-title mt16">إضافة يوم إجازة</div><div class="row"><input class="field" id="schoolHolidayDate" type="date" value="'+state.date+'"><button class="btn soft" id="addSchoolHoliday">إضافة</button></div>'
+    +'<div id="schoolHolidayList" class="mt12"></div>'
+    +'<button class="btn primary mt16" id="saveSchoolCalendarBtn" style="width:100%">حفظ التقويم</button>');
+  function drawHolidays(){
+    const list=q('#schoolHolidayList',sheet),holidays=(cal.holidays||[]).slice().sort();
+    list.innerHTML=holidays.length?holidays.map(d=>'<div class="row between panel mt8"><div><strong>'+dayNames[weekdayForIso(d)]+'</strong><div class="small">'+dualDateText(d)+'</div></div><button class="btn soft" data-remove-holiday="'+d+'">حذف</button></div>').join(''):'<div class="small">لا توجد إجازات مضافة يدويًا.</div>';
+    qa('[data-remove-holiday]',sheet).forEach(b=>b.onclick=()=>{cal.holidays=cal.holidays.filter(x=>x!==b.dataset.removeHoliday);drawHolidays()});
+  }
+  qa('[data-school-day]',sheet).forEach(btn=>btn.onclick=()=>{
+    const d=Number(btn.dataset.schoolDay),set=new Set(cal.workdays||[]);
+    if(set.has(d))set.delete(d);else set.add(d);
+    if(!set.size){showToast('يجب اختيار يوم دراسة واحد على الأقل.');return}
+    cal.workdays=[...set].sort((a,b)=>a-b);btn.classList.toggle('active',set.has(d));
+  });
+  q('#addSchoolHoliday',sheet).onclick=()=>{
+    const d=q('#schoolHolidayDate',sheet).value;if(!d)return;
+    cal.holidays=[...new Set([...(cal.holidays||[]),d])].sort();drawHolidays();
+  };
+  q('#schoolCalClose',sheet).onclick=closeSheet;
+  q('#saveSchoolCalendarBtn',sheet).onclick=()=>{saveSchoolCalendar();closeSheet();renderAccount();renderFollowup();showToast('تم حفظ تقويم المدرسة.','')};
+  drawHolidays();
+}
+
 function openReportSettings(){
   const b=state.reportBranding,sig=state.reportSignatures;
   openReportSheet('<div class="row between"><div><div class="h2">إعدادات التقارير والترويسة</div><div class="small mt8">تُستخدم هذه الإعدادات تلقائيًا في كل تقارير ركّز.</div></div><button class="iconbtn" id="rsClose">×</button></div>'
@@ -998,7 +1035,7 @@ function showView(v){
 }
 qa('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
 qa('[data-go]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.go)));
-q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#reportSettingsBtn').addEventListener('click',openReportSettings);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
+q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#schoolCalendarBtn').addEventListener('click',openSchoolCalendarSettings);q('#reportSettingsBtn').addEventListener('click',openReportSettings);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
 
 const headerBack=q('#headerBack');
 let backDrag=null,backLongPressTimer=null,suppressBackClick=false;
