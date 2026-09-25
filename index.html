@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.40</title>
+<title>ركّز — موقع تجريبي v0.41</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -45,7 +45,23 @@ button{cursor:pointer}
 .h1{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:23px;font-weight:800;letter-spacing:-.3px}
 .h2{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:18px;font-weight:800;line-height:1.55}
 .small{font-size:13px;color:var(--muted);font-weight:600}
-.card{background:#fff;border:1px solid var(--line);border-radius:20px}
+.card{background:linear-gradient(155deg,#ffffff 0%,#fbfdfc 66%,#f4eee8 145%);border:1px solid var(--line);border-radius:20px;box-shadow:0 5px 18px rgba(15,79,77,.035)}
+.main section[data-view]>.h1{color:var(--green);position:relative;padding-right:11px}
+.main section[data-view]>.h1:before{content:"";position:absolute;right:0;top:8px;bottom:8px;width:4px;border-radius:999px;background:linear-gradient(var(--green2),var(--brown2))}
+.main section[data-view]>.small:first-of-type{color:#647b7c}
+.datebox{background:linear-gradient(145deg,#fff,#f3f8f6 62%,#f7efe9)}
+.toolcard{background:linear-gradient(145deg,#fff,#f4f9f7);border-color:#d5e5e2;box-shadow:0 4px 14px rgba(15,79,77,.035)}
+.toolcard:nth-child(3n+2){background:linear-gradient(145deg,#fff,#f8f1eb)}
+.classcard{background:linear-gradient(145deg,#fff,#eef7f4);border-right:4px solid rgba(15,79,77,.55)}
+.panel{background:linear-gradient(155deg,#fff,#f8fbfa);border-color:#d7e5e2}
+.form-section{background:linear-gradient(155deg,#fff,#f7fbfa);border-color:#d8e6e3}
+.student-report-card,.report-type,.report-lib-card{box-shadow:0 5px 15px rgba(15,79,77,.035)}
+.student-report-card:nth-child(even),.report-type:nth-child(even),.report-lib-card:nth-child(even){background:linear-gradient(145deg,#fff,#f7f0ea)}
+.student-card-stat{background:linear-gradient(145deg,#fff,#eff7f5)!important}
+.student-accordion{background:linear-gradient(145deg,#fff,#fbf8f4)!important}
+.nav{background:linear-gradient(180deg,#fff,#f8fbfa)}
+.header{background:linear-gradient(180deg,rgba(247,251,250,.98),rgba(243,248,246,.97))}
+
 .hero{background:linear-gradient(135deg,var(--green) 0%,#155f5b 56%,var(--brown) 100%);color:#fff;padding:18px;border-radius:22px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;left:-42px;bottom:-64px;width:160px;height:160px;border-radius:50%;border:26px solid rgba(236,214,190,.12);pointer-events:none}.hero>*{position:relative;z-index:1}
 .btn{min-height:46px;border:0;border-radius:14px;padding:0 15px;font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-weight:700}
 .primary{background:var(--green);color:#fff}
