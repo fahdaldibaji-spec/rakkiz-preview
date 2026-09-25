@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.70</title>
+<title>ركّز — موقع تجريبي v0.71</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -178,7 +178,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 .student-card-meta{font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px}
 .student-card-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
 .student-attendance-block{margin-top:9px}.student-attendance-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.student-att-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:7px 4px;text-align:center;color:var(--ink);min-height:53px}.student-att-card strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:15px;line-height:1.15}.student-att-card span{display:block;font-size:9px;font-weight:800;margin-top:3px;white-space:nowrap}.student-att-card.present{background:#eef8f4;border-color:#c3e1d5;color:#176b55}.student-att-card.absent{background:#fff1ef;border-color:#efcbc5;color:#a54538}.student-att-card.excused{background:#fff7dc;border-color:#ecd891;color:#916b14}.student-att-card.late{background:#f0f2fb;border-color:#d8ddf1;color:#59649e}.student-attendance-insight{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:7px;margin-top:7px;padding:6px 8px;border:1px solid #e3ecea;border-radius:11px;background:#fbfdfc}.student-attendance-insight .attendance-pulse-track{min-width:0}.attendance-insight-label{font-size:9.5px;color:var(--muted);font-weight:800}.attendance-insight-chip{font-size:9.5px;font-weight:850;border-radius:999px;padding:3px 7px;background:#edf5f3;color:var(--green);white-space:nowrap}.attendance-log-row{padding:9px 2px;border-bottom:1px solid #edf2f1}.attendance-log-row:last-child{border-bottom:0}.attendance-log-row strong{display:block;font-size:12.5px}.attendance-log-row span{display:block;font-size:10.5px;color:var(--muted);line-height:1.65;margin-top:2px}
-.student-card-stat{border:1px solid var(--line);border-radius:12px;background:#fbfdfc;padding:7px 6px;text-align:center}
+.student-card-stat{border:1px solid var(--line);border-radius:12px;background:#fbfdfc;padding:7px 6px;text-align:center}.student-card-stat{color:var(--ink);min-width:0}.student-card-stat.interactive{cursor:pointer;transition:transform .1s ease,box-shadow .12s ease}.student-card-stat.interactive:active{transform:scale(.98)}.student-card-stat.interactive:after{content:"›";display:block;font-size:10px;color:var(--muted);line-height:1;margin-top:2px}.student-log-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}.student-log-card{border:1px solid var(--line);border-radius:13px;background:#fff;padding:10px}.student-log-card strong{display:block;font-size:12.5px}.student-log-card .meta{font-size:10.3px;color:var(--muted);line-height:1.65;margin-top:3px}.student-log-card.resolved{background:#f3f8f6}.student-log-card.open{background:#fff8e8;border-color:#eadcb8}.student-log-status{font-size:9.5px;font-weight:850;border-radius:999px;padding:3px 7px}.student-log-status.open{background:#fff0cf;color:#8b6418}.student-log-status.resolved{background:#e5f3ed;color:#176b55}.performance-hero{border-radius:16px;padding:12px;background:linear-gradient(145deg,var(--green),#176d68);color:#fff;margin-top:12px}.performance-hero strong{font-family:"IBM Plex Sans Arabic";font-size:26px}.performance-hero span{font-size:11px;color:rgba(255,255,255,.82)}.performance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}.performance-mini{border:1px solid var(--line);border-radius:12px;background:#fff;padding:8px;text-align:center}.performance-mini strong{display:block;font-size:14px}.performance-mini span{display:block;font-size:9.5px;color:var(--muted);margin-top:2px}
 .student-card-stat strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:15px;color:var(--green);line-height:1.2}
 .student-card-stat span{display:block;font-size:9.8px;color:var(--muted);font-weight:700;margin-top:2px}
 .student-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
@@ -1232,12 +1232,12 @@ function addEvent(studentId,main,sub){
     const eventKey=bulkEventKey(bulk.batchId,studentId,main);
     let ev=state.events.find(e=>e.eventKey===eventKey);
     if(ev){
-      ev.subId=sub.id;ev.label=sub.name;ev.value=sub.value;ev.follow=needsFollow;ev.resolved=false;ev.updatedAt=new Date().toISOString();
+      const ctx=currentEventContext();ev.subId=sub.id;ev.label=sub.name;ev.value=sub.value;ev.follow=needsFollow;ev.resolved=false;Object.assign(ev,ctx);ev.updatedAt=new Date().toISOString();
     }else{
-      state.events.push({id:'e'+Date.now()+Math.random(),eventKey,batchId:bulk.batchId,studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,createdAt:new Date().toISOString()});
+      const ctx=currentEventContext();state.events.push({id:'e'+Date.now()+Math.random(),eventKey,batchId:bulk.batchId,studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,...ctx,createdAt:new Date().toISOString()});
     }
   }else{
-    state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,createdAt:new Date().toISOString()});
+    const ctx=currentEventContext();state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,...ctx,createdAt:new Date().toISOString()});
   }
   delete state.evalFollow[key];
   const after=scoreFor(studentId,main), raw=Number(sub.value||0), actual=after-before;
@@ -1839,6 +1839,57 @@ q('#addGradesBtn').addEventListener('click',()=>openAddGrades());
 function noteCount(studentId){
   return state.events.filter(e=>e.studentId===studentId&&e.module==='note').length;
 }
+function followHistory(studentId){return state.events.filter(e=>e.studentId===studentId&&e.follow).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||'').localeCompare(a.createdAt||''))}
+function followTotalCount(studentId){return followHistory(studentId).length}
+function followResolvedCount(studentId){return followHistory(studentId).filter(e=>e.resolved).length}
+function currentEventContext(){
+  const classId=state.classId,subject=classSubject(classId),meta=attendanceLessonMeta(state.date,classId,subject);
+  return {classId,subject,period:meta.period,lessonId:meta.lessonId,start:meta.start,end:meta.end};
+}
+function eventContextMeta(e,studentId){
+  const st=state.students.find(x=>x.id===studentId);
+  const classId=e.classId||st?.classId||state.classId,subject=e.subject||classSubject(classId);
+  const fallback=attendanceLessonMeta(e.date||state.date,classId,subject);
+  const period=e.period||fallback.period,start=e.start||fallback.start,end=e.end||fallback.end;
+  const day=e.date?dayNames[weekdayForIso(e.date)]:'';
+  return {classId,subject,period,start,end,day};
+}
+function eventMetaHtml(e,studentId){
+  const m=eventContextMeta(e,studentId);
+  const parts=[];
+  if(e.date)parts.push(m.day+' · '+dualDateText(e.date));
+  if(m.period)parts.push(periodLabel(m.period));
+  if(m.start&&m.end)parts.push(m.start+'–'+m.end);
+  if(m.subject)parts.push(m.subject);
+  return parts.join(' · ');
+}
+function studentPerformanceData(studentId){
+  const st=state.students.find(x=>x.id===studentId);if(!st)return {overall:0,metrics:[],tests:[],homeworks:[],customRows:[],followTotal:0,followResolved:0};
+  const classId=st.classId,subject=classSubject(classId),metrics=[];
+  const counts=attendanceCountsFor(studentId,classId,subject),totalAtt=Object.values(counts).reduce((a,b)=>a+b,0);
+  const attendancePct=totalAtt?Math.round(((counts.present+counts.excused)/totalAtt)*100):null;
+  if(attendancePct!=null)metrics.push({name:'الحضور',pct:attendancePct});
+  const tests=state.events.filter(e=>e.studentId===studentId&&e.module==='tests'&&Number(e.max)>0&&Number.isFinite(Number(e.value)));
+  const testPct=tests.length?Math.round(tests.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/tests.length):null;
+  if(testPct!=null)metrics.push({name:'الاختبارات',pct:testPct});
+  const homeworks=state.events.filter(e=>e.studentId===studentId&&e.module==='homework'&&Number(e.max)>0&&Number.isFinite(Number(e.value)));
+  const homeworkPct=homeworks.length?Math.round(homeworks.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/homeworks.length):null;
+  if(homeworkPct!=null)metrics.push({name:'الواجبات',pct:homeworkPct});
+  const customRows=state.events.filter(e=>e.studentId===studentId&&e.module==='custom-card'&&Number(e.max)>0&&Number.isFinite(Number(e.value)));
+  const customPct=customRows.length?Math.round(customRows.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/customRows.length):null;
+  if(customPct!=null)metrics.push({name:'البطاقات المستقلة',pct:customPct});
+  const continuous=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat((state.items.custom||[]).filter(x=>x.usage!=='cards'));
+  continuous.forEach(m=>{
+    const used=state.events.some(e=>e.studentId===studentId&&e.mainId===m.id);
+    if(used&&Number(m.max)>0)metrics.push({name:m.name,pct:Math.round(scoreFor(studentId,m)/Number(m.max)*100),value:scoreFor(studentId,m),max:m.max});
+  });
+  const frows=followHistory(studentId),followTotal=frows.length,followResolved=frows.filter(e=>e.resolved).length;
+  if(followTotal)metrics.push({name:'إنجاز المتابعات',pct:Math.round(followResolved/followTotal*100)});
+  const overall=metrics.length?Math.round(metrics.reduce((a,m)=>a+Number(m.pct||0),0)/metrics.length):Number(st.perf||0);
+  return {overall,metrics,counts,totalAtt,tests,homeworks,customRows,followTotal,followResolved};
+}
+function studentPerformanceScore(studentId){return studentPerformanceData(studentId).overall}
+
 function openParticipationQuick(studentId){
   const st=state.students.find(x=>x.id===studentId), main=state.items.participation?.[0];
   if(!st||!main)return;
@@ -2097,16 +2148,46 @@ function renderFollowup(){
   ensureAttendanceDay();renderDate();renderModuleTabs();renderTools();renderStudents()
 }
 
+function openStudentNotesHistory(id){
+  const st=state.students.find(x=>x.id===id);if(!st)return;
+  const rows=state.events.filter(e=>e.studentId===id&&e.module==='note').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||'').localeCompare(a.createdAt||''));
+  openSheet('<div class="row between"><div><div class="h2">ملاحظات الطالب</div><div class="small">'+htmlEsc(st.name)+' · '+rows.length+' ملاحظة</div></div><button class="iconbtn" id="notesHistoryClose">×</button></div>'
+    +(rows.length?'<div class="student-log-list">'+rows.map(e=>'<div class="student-log-card"><strong>'+htmlEsc(e.label||'ملاحظة')+'</strong><div class="meta">'+htmlEsc(eventMetaHtml(e,id))+'</div></div>').join('')+'</div>':'<div class="notice mt16">لا توجد ملاحظات مسجلة.</div>'));
+  q('#notesHistoryClose',sheet).onclick=()=>openStudentCard(id);
+}
+function openStudentFollowHistory(id){
+  const st=state.students.find(x=>x.id===id);if(!st)return;
+  const rows=followHistory(id),openCount=rows.filter(e=>!e.resolved).length,resolvedCount=rows.length-openCount;
+  openSheet('<div class="row between"><div><div class="h2">سجل المتابعة</div><div class="small">'+htmlEsc(st.name)+' · '+rows.length+' متابعة</div></div><button class="iconbtn" id="followHistoryClose">×</button></div>'
+    +'<div class="grid2 mt12"><div class="panel"><div class="small">مفتوحة</div><div class="h2">'+openCount+'</div></div><div class="panel"><div class="small">محلولة</div><div class="h2">'+resolvedCount+'</div></div></div>'
+    +(rows.length?'<div class="student-log-list">'+rows.map(e=>'<div class="student-log-card '+(e.resolved?'resolved':'open')+'"><div class="row between"><strong>'+htmlEsc(e.label||'متابعة')+'</strong><span class="student-log-status '+(e.resolved?'resolved':'open')+'">'+(e.resolved?'محلولة':'مفتوحة')+'</span></div><div class="meta">'+htmlEsc(eventMetaHtml(e,id))+(e.resolvedAt?'<br>أغلقت: '+htmlEsc(dualDateText(e.resolvedDate||e.date)):'')+'</div>'+(!e.resolved?'<button class="btn soft mt8" data-history-resolve="'+e.id+'" style="min-height:34px">تمت المتابعة</button>':'')+'</div>').join('')+'</div>':'<div class="notice mt16">لا توجد متابعات مسجلة.</div>'));
+  q('#followHistoryClose',sheet).onclick=()=>openStudentCard(id);
+  qa('[data-history-resolve]',sheet).forEach(btn=>btn.onclick=()=>{const e=state.events.find(x=>x.id===btn.dataset.historyResolve);if(e){e.resolved=true;e.resolvedAt=new Date().toISOString();e.resolvedDate=todayIsoRiyadh()}renderStudents();openStudentFollowHistory(id)});
+}
+function openStudentPerformance(id){
+  const st=state.students.find(x=>x.id===id);if(!st)return;
+  const p=studentPerformanceData(id),metrics=p.metrics;
+  const trend=p.tests.slice(-6);
+  const bars=metrics.length?metrics.map(m=>'<div class="analysis-bar-row"><strong>'+htmlEsc(m.name)+'</strong><div class="analysis-bar-track"><div class="analysis-bar-fill" style="--w:'+Math.max(0,Math.min(100,m.pct))+'%"></div></div><span>'+Math.round(m.pct)+'%</span></div>').join(''):'<div class="small">لا توجد بيانات كافية للتحليل بعد.</div>';
+  const spark=trend.length?trend.map(e=>{const pct=Math.max(0,Math.min(100,Math.round(Number(e.value)/Number(e.max)*100)));return '<div class="analysis-spark-col"><div class="analysis-spark-bar" style="--h:'+Math.max(8,pct)+'%"></div><small>'+pct+'%</small></div>'}).join(''):'<div class="small" style="grid-column:1/-1;text-align:center">لا توجد اختبارات كافية للاتجاه.</div>';
+  openSheet('<div class="row between"><div><div class="h2">تحليل أداء الطالب</div><div class="small">'+htmlEsc(st.name)+'</div></div><button class="iconbtn" id="performanceClose">×</button></div>'
+    +'<div class="performance-hero"><div class="row between"><div><strong>'+p.overall+'/100</strong><span>المؤشر العام من البيانات المسجلة فعليًا</span></div><span>'+metrics.length+' محاور</span></div></div>'
+    +'<div class="performance-grid"><div class="performance-mini"><strong>'+p.tests.length+'</strong><span>اختبارات</span></div><div class="performance-mini"><strong>'+p.homeworks.length+'</strong><span>واجبات</span></div><div class="performance-mini"><strong>'+p.followResolved+'/'+p.followTotal+'</strong><span>متابعات منجزة</span></div></div>'
+    +'<div class="section-title mt16">محاور الأداء</div><div class="analysis-bars">'+bars+'</div>'
+    +'<div class="section-title mt16">اتجاه آخر الاختبارات</div><div class="analysis-spark">'+spark+'</div>');
+  q('#performanceClose',sheet).onclick=()=>openStudentCard(id);
+}
+
 function openStudentCard(id){
   const st=state.students.find(x=>x.id===id); if(!st)return;
   const cls=state.classes.find(c=>c.id===st.classId),subject=classSubject(st.classId);
   const ev=state.events.filter(e=>e.studentId===id).slice(-8).reverse();
-  const alerts=state.events.filter(e=>e.studentId===id&&e.follow&&!e.resolved).slice().reverse();
+  const allFollow=followHistory(id),alerts=allFollow.filter(e=>!e.resolved);
   const evalRows=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat((state.items.custom||[]).filter(x=>x.usage!=='cards'));
-  const att=attendanceCountsFor(id,st.classId,subject),insight=attendanceInsightFor(id,st.classId,subject);
+  const att=attendanceCountsFor(id,st.classId,subject),insight=attendanceInsightFor(id,st.classId,subject),performance=studentPerformanceScore(id);
   openCompactSheet(
     '<div class="student-card-head"><div><div class="student-card-name">'+st.name+'</div><div class="student-card-meta">الكود '+(st.code||'بدون كود')+' · '+(cls?.grade||'')+' · '+(cls?.name||'')+' · '+subject+'</div></div><button class="iconbtn" id="xclose">×</button></div>'
-    +'<div class="student-card-stats"><div class="student-card-stat"><strong>'+(st.perf||0)+'</strong><span>الأداء</span></div><div class="student-card-stat"><strong>'+followCount(id)+'</strong><span>متابعة</span></div><div class="student-card-stat"><strong>'+noteCount(id)+'</strong><span>ملاحظات</span></div></div>'
+    +'<div class="student-card-stats"><button class="student-card-stat interactive" id="studentPerformanceStat"><strong>'+performance+'/100</strong><span>الأداء</span></button><button class="student-card-stat interactive" id="studentFollowStat"><strong>'+allFollow.length+'</strong><span>متابعة · '+alerts.length+' مفتوحة</span></button><button class="student-card-stat interactive" id="studentNotesStat"><strong>'+noteCount(id)+'</strong><span>ملاحظات</span></button></div>'
     +'<div class="student-attendance-block"><div class="student-attendance-grid">'
       +'<button class="student-att-card present" data-att-history="present"><strong>'+att.present+'</strong><span>حاضر</span></button>'
       +'<button class="student-att-card absent" data-att-history="absent"><strong>'+att.absent+'</strong><span>غائب</span></button>'
@@ -2129,10 +2210,13 @@ function openStudentCard(id){
   qa('[data-att-history]',sheet).forEach(btn=>btn.onclick=()=>openAttendanceHistory(id,btn.dataset.attHistory));
   qa('[data-resolve]',sheet).forEach(btn=>btn.onclick=()=>{
     const e=state.events.find(x=>x.id===btn.dataset.resolve);
-    if(e)e.resolved=true;
+    if(e){e.resolved=true;e.resolvedAt=new Date().toISOString();e.resolvedDate=todayIsoRiyadh()}
     renderStudents();
     openStudentCard(id);
   });
+  q('#studentPerformanceStat',sheet).onclick=()=>openStudentPerformance(id);
+  q('#studentFollowStat',sheet).onclick=()=>openStudentFollowHistory(id);
+  q('#studentNotesStat',sheet).onclick=()=>openStudentNotesHistory(id);
   q('#cardReports',sheet).onclick=()=>openStudentReports(id);
   q('#cardNote',sheet).onclick=()=>{closeSheet();openNote(id)};
 }
@@ -2143,15 +2227,11 @@ function reportStats(studentId){
   const rows=attendanceHistoryFor(studentId,Infinity,classId,subject);
   const totalAtt=Object.values(counts).reduce((a,b)=>a+b,0);
   const attendancePct=totalAtt?Math.round(((counts.present+counts.excused)/totalAtt)*100):100;
-  const tests=state.events.filter(e=>e.studentId===studentId&&e.module==='tests'&&Number(e.max)>0);
-  const testPct=tests.length?Math.round(tests.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/tests.length):0;
-  const homeworkRows=state.events.filter(e=>e.studentId===studentId&&e.module==='homework'&&Number(e.max)>0&&Number.isFinite(Number(e.value)));
-  const homeworkPct=homeworkRows.length?Math.round(homeworkRows.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/homeworkRows.length):0;
-  const itemRows=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat((state.items.custom||[]).filter(m=>m.usage!=='cards')).map(m=>{
-    const value=scoreFor(studentId,m); return {name:m.name,value,max:m.max,pct:m.max?Math.round(value/m.max*100):0};
-  });
-  if(homeworkRows.length)itemRows.splice(1,0,{name:'الواجبات',pct:homeworkPct});
-  return {st,counts,totalAtt,attendancePct,tests,testPct,homeworkRows,homeworkPct,itemRows,follow:followCount(studentId),notes:noteCount(studentId)};
+  const perf=studentPerformanceData(studentId);
+  const tests=perf.tests,testPct=tests.length?Math.round(tests.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/tests.length):0;
+  const homeworkRows=perf.homeworks,homeworkPct=homeworkRows.length?Math.round(homeworkRows.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/homeworkRows.length):0;
+  const itemRows=perf.metrics.filter(m=>!['الحضور','الاختبارات','إنجاز المتابعات'].includes(m.name));
+  return {st,counts,totalAtt,attendancePct,tests,testPct,homeworkRows,homeworkPct,itemRows,performance:perf.overall,metrics:perf.metrics,follow:perf.followTotal,followOpen:perf.followTotal-perf.followResolved,followResolved:perf.followResolved,notes:noteCount(studentId)};
 }
 function renderMetric(name,pct,detail){
   const p=Math.max(0,Math.min(100,Number(pct)||0));
@@ -2189,15 +2269,20 @@ function reportBody(studentId,type){
       +'<div class="section-title mt16">تفصيل الأداء</div>'
       +metrics.map(x=>renderMetric(x.name,x.pct,x.value!=null&&x.max!=null?x.value+'/'+x.max:'')).join('');
   }
-  const summary='<div class="grid2"><div class="panel"><div class="small">مؤشر الأداء</div><div class="h2">'+(st.perf||0)+'/100</div></div><div class="panel"><div class="small">الحضور</div><div class="h2">'+r.attendancePct+'%</div></div><div class="panel"><div class="small">متوسط الاختبارات</div><div class="h2">'+r.testPct+'%</div></div><div class="panel"><div class="small">متابعات مفتوحة</div><div class="h2">'+r.follow+'</div></div></div>';
+  const summary='<div class="grid2"><div class="panel"><div class="small">مؤشر الأداء</div><div class="h2">'+r.performance+'/100</div></div><div class="panel"><div class="small">الحضور</div><div class="h2">'+r.attendancePct+'%</div></div><div class="panel"><div class="small">متوسط الاختبارات</div><div class="h2">'+r.testPct+'%</div></div><div class="panel"><div class="small">المتابعات</div><div class="h2">'+r.followResolved+'/'+r.follow+'</div><div class="small">منجزة · '+r.followOpen+' مفتوحة</div></div></div>';
   const items='<div class="section-title mt16">التقييمات</div><div class="panel">'+(r.itemRows.length?r.itemRows.map(x=>'<div class="row between" style="padding:5px 0"><span>'+x.name+'</span><strong>'+x.value+'/'+x.max+'</strong></div>').join(''):'<div class="small">لا توجد تقييمات بعد.</div>')+'</div>';
-  if(type==='summary')return summary+items;
-  return summary+items+'<div class="section-title mt16">آخر الأحداث</div>'+(recent.length?recent.map(e=>'<div class="panel mt8"><strong>'+(e.label||e.module)+'</strong><div class="small">'+(e.date||'')+' · '+(e.value>0?'+':'')+(e.value??'')+'</div></div>').join(''):'<div class="small">لا توجد أحداث بعد.</div>');
+  if(type==='summary')return summary+'<div class="section-title mt16">المحاور</div>'+r.metrics.slice(0,4).map(x=>renderMetric(x.name,x.pct,'')).join('');
+  const followRows=followHistory(studentId);
+  const noteRows=state.events.filter(e=>e.studentId===studentId&&e.module==='note').slice().reverse();
+  return summary+'<div class="section-title mt16">تحليل المحاور</div>'+r.metrics.map(x=>renderMetric(x.name,x.pct,'')).join('')
+    +'<div class="section-title mt16">سجل المتابعات</div>'+(followRows.length?followRows.map(e=>'<div class="panel mt8"><div class="row between"><strong>'+(e.label||'متابعة')+'</strong><span class="badge">'+(e.resolved?'محلولة':'مفتوحة')+'</span></div><div class="small">'+eventMetaHtml(e,studentId)+'</div></div>').join(''):'<div class="small">لا توجد متابعات.</div>')
+    +'<div class="section-title mt16">الملاحظات</div>'+(noteRows.length?noteRows.map(e=>'<div class="panel mt8"><strong>'+e.label+'</strong><div class="small">'+eventMetaHtml(e,studentId)+'</div></div>').join(''):'<div class="small">لا توجد ملاحظات.</div>')
+    +'<div class="section-title mt16">آخر الأحداث</div>'+(recent.length?recent.map(e=>'<div class="panel mt8"><strong>'+(e.label||e.module)+'</strong><div class="small">'+eventMetaHtml(e,studentId)+'</div></div>').join(''):'<div class="small">لا توجد أحداث بعد.</div>');
 }
 function openStudentReports(id){
   const st=state.students.find(x=>x.id===id), r=st?reportStats(id):null;if(!st)return;
   openReportSheet('<div class="row between"><div><div class="h2">تقارير الطالب</div><div class="small">'+st.name+'</div></div><button class="iconbtn" id="reportClose">×</button></div>'
-    +'<div class="student-report-hero"><div class="row between"><div><strong style="font-family:IBM Plex Sans Arabic;font-size:15px">'+st.name+'</strong><div class="small">كل تقاريره وتحليلاته في مكان واحد</div></div><div style="text-align:left"><strong style="font-size:21px">'+(st.perf||0)+'</strong><div class="small">مؤشر الأداء</div></div></div></div>'
+    +'<div class="student-report-hero"><div class="row between"><div><strong style="font-family:IBM Plex Sans Arabic;font-size:15px">'+st.name+'</strong><div class="small">كل تقاريره وتحليلاته في مكان واحد</div></div><div style="text-align:left"><strong style="font-size:21px">'+r.performance+'/100</strong><div class="small">مؤشر الأداء</div></div></div></div>'
     +'<div class="student-report-grid">'
     +'<button class="student-report-card primary" data-report-type="analysis"><strong>تحليل النتائج</strong><span>دائرة المؤشر ورسوم مقارنة واتجاه الاختبارات</span></button>'
     +'<button class="student-report-card" data-report-type="summary"><strong>ملخص الأداء</strong><span>أهم الأرقام والتقييمات بسرعة</span></button>'
@@ -2835,7 +2920,7 @@ function openNote(id){
   q('#cancelNote',sheet).onclick=closeSheet;
   q('#saveNote',sheet).onclick=()=>{
     const t=q('#noteText',sheet).value.trim(); if(!t)return;
-    state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'note',label:t,value:0,follow:rem!=='none',reminder:rem});
+    const ctx=currentEventContext();state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'note',label:t,value:0,follow:rem!=='none',resolved:rem==='none',reminder:rem,...ctx,createdAt:new Date().toISOString()});
     closeSheet();renderStudents();
   };
 }
