@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.31</title>
+<title>ركّز — موقع تجريبي v0.32</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -626,8 +626,21 @@ function dailyEvalKey(studentId,main){return ['daily',state.date,state.classId,s
 function todayMainEvent(studentId,main){
   return state.events.find(e=>e.eventKey===dailyEvalKey(studentId,main));
 }
+function activeEvalForToggle(studentId,main){
+  const bulk=currentBatchEvent(studentId,main);
+  if(bulk)return bulk;
+  return state.events.filter(e=>e.studentId===studentId&&e.mainId===main?.id&&e.date===state.date).slice(-1)[0]||null;
+}
 function addEvent(studentId,main,sub){
   const key=evalFollowKey(studentId,main,sub), manualFollow=!!state.evalFollow[key];
+  const active=activeEvalForToggle(studentId,main);
+  if(active&&active.subId===sub.id){
+    state.events=state.events.filter(e=>e.id!==active.id);
+    delete state.evalFollow[key];
+    showToast(`تم إلغاء «${sub.name}» عن الطالب.`,'');
+    renderStudents();
+    return {removed:true};
+  }
   const before=scoreFor(studentId,main), autoFollow=looksNegative(sub), needsFollow=autoFollow||manualFollow;
   const bulk=activeBulkFor(main);
   if(bulk){
@@ -647,6 +660,7 @@ function addEvent(studentId,main,sub){
   if(raw<0&&actual===0&&after===0)showToast(`الدرجة عند 0/${main.max}: لم يُطبّق الخصم ${raw} ولن يُحفظ كرصد سالب مؤجل.`);
   else if(raw>0&&actual===0&&after===main.max)showToast(`الدرجة عند ${main.max}/${main.max}: لم تُضف +${raw} ولن يُحفظ رصيد زائد.`);
   renderStudents();
+  return {removed:false};
 }
 function followCount(studentId){
   return state.events.filter(e=>e.studentId===studentId&&e.follow&&!e.resolved).length;
@@ -875,11 +889,13 @@ function openStudentEvaluation(id,main,sub){
     return;
   }
   const followKey=main&&sub?evalFollowKey(id,main,sub):null;
+  const activeEval=main&&sub?activeEvalForToggle(id,main):null;
+  const sameSelected=!!(activeEval&&activeEval.subId===sub?.id);
   openSheet(`<div class="row between"><div><div class="h2">${st.name}</div><div class="small">الأداء ${st.perf||0}/100 · ${followCount(id)} متابعة · ${noteCount(id)} ملاحظات</div></div><button class="iconbtn" id="evalClose">×</button></div>
     <div class="panel mt16">
       <div class="section-title">${main?.name||'التقييم'}</div>
       ${sub?`<div class="row between"><div><strong>${sub.name}</strong><div class="small">الدرجة ${sub.value>0?'+':''}${sub.value}</div></div><span class="scorepill">${scoreFor(id,main)}/${main.max}</span></div>
-      <button class="btn ${sub.value<0?'danger':'primary'} mt12" id="applyEval" style="width:100%">تسجيل التقييم</button>
+      <button class="btn ${sameSelected?'soft':sub.value<0?'danger':'primary'} mt12" id="applyEval" style="width:100%">${sameSelected?'إلغاء التقييم':'تسجيل التقييم'}</button>
       <button class="btn soft mt8" id="toggleEvalFollow" style="width:100%">${state.evalFollow[followKey]?'✓ يحتاج متابعة':'يحتاج متابعة'}</button>`:'<div class="small">اختر بندًا فرعيًا من الأعلى أولًا.</div>'}
     </div>
     <div class="grid2 mt12"><button class="btn soft" id="evalNote">+ ملاحظة</button><button class="btn soft" id="evalCard">بطاقة الطالب</button></div>`);
