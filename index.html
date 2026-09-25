@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.49</title>
+<title>ركّز — موقع تجريبي v0.50</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1288,7 +1288,7 @@ function lessonTitleKey(){return classSubject(state.classId)+'|'+state.classId+'
 function getLessonTitle(){return state.lessonTitles[lessonTitleKey()]||''}
 function openLessonTitleEditor(){
   const c=state.classes.find(x=>x.id===state.classId);
-  openSheet(`<div class="h2">اسم الدرس</div><div class="small mt8">${c?`${c.subject} · ${c.grade} — ${c.name}`:''} · ${state.date}</div>
+  openSheet(`<div class="h2">اسم الدرس</div><div class="small mt8">${c?`${classSubject(c.id)} · ${c.grade} — ${c.name}`:''} · ${state.date}</div>
     <div class="label mt16">اكتب اسم الدرس</div>
     <input class="field" id="lessonTitleInput" maxlength="120" placeholder="مثال: الخلية وتركيبها" value="${getLessonTitle().replace(/"/g,'&quot;')}">
     <div class="row mt16"><button class="btn soft" id="cancelLessonTitle">إلغاء</button><button class="btn primary" id="saveLessonTitle" style="flex:1">حفظ</button></div>`);
@@ -1301,7 +1301,7 @@ function openLessonTitleEditor(){
 }
 function renderFollowup(){
   const c=state.classes.find(x=>x.id===state.classId);
-  q('#followupClassTitle').textContent=c?`${c.subject} · ${c.grade} — ${c.name}`:'المادة والفصل';
+  q('#followupClassTitle').textContent=c?`${classSubject(c.id)} · ${c.grade} — ${c.name}`:'المادة والفصل';
   q('#lessonTitleText').textContent=getLessonTitle()||'إضافة اسم الدرس';
   ensureAttendanceDay();renderDate();renderModuleTabs();renderTools();renderStudents()
 }
@@ -1493,7 +1493,7 @@ function openPrintWindow(title,studentName,c,body,sig,evidence,opts={}){
     +'.official-head{display:grid;grid-template-columns:112px 1fr 112px;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #dbe7e4;min-height:72px}.logo-zone{display:flex;align-items:center;justify-content:center;gap:5px}.official-logo{width:54px;height:58px;display:grid;place-items:center}.official-logo img{max-width:100%;max-height:56px;object-fit:contain}.official-copy{text-align:center;line-height:1.6}.official-copy strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:12px;color:#0f4f4d}.official-copy span{display:block;font-family:"Cairo";font-size:9.7px;color:#6b7f80;font-weight:600}'
     +'.report-title{margin-top:9px;padding:8px 10px;border-radius:9px;background:#f1f7f5;border-right:4px solid #0f4f4d;display:flex;justify-content:space-between;gap:10px;align-items:center}.report-title h1{margin:0;font-family:"IBM Plex Sans Arabic";font-size:16px;color:#0f4f4d}.report-title span{font-size:8.7px;color:#718687}'
     +'.student-strip{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:1px;margin-top:7px;background:#dce7e5;border:1px solid #dce7e5;border-radius:8px;overflow:hidden}.student-strip>div{background:#fff;padding:6px 7px}.student-strip small{display:block;font-family:"Cairo";font-size:7.8px;color:#7b8d8e}.student-strip strong{display:block;font-size:10.4px;margin-top:2px}'
-    +'.section{margin-top:9px}.section-title,.section-kicker{font-family:"IBM Plex Sans Arabic";font-size:10.5px;font-weight:800;color:#0f4f4d;margin:0 0 5px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}.panel{border:1px solid #dce7e5;border-radius:8px;padding:7px 8px;background:#fbfdfc;break-inside:avoid;font-size:9.4px;line-height:1.62}.small{font-size:8.7px;color:#718687}.h2{font-family:"IBM Plex Sans Arabic";font-size:14px}.row{display:flex;align-items:center;gap:7px}.between{justify-content:space-between}.mt8{margin-top:5px}.mt12{margin-top:7px}.mt16{margin-top:9px}.badge{font-size:8.5px;background:#eaf4f2;color:#0f4f4d;border-radius:999px;padding:2px 5px}.notice{border:1px solid #eadcb8;background:#fffaf0;padding:7px 8px;border-radius:8px;font-size:9px}'
+    +'.section{margin-top:9px}.section-title,.section-kicker{font-family:"IBM Plex Sans Arabic";font-size:10.5px;font-weight:800;color:#0f4f4d;margin:0 0 5px}.grid2,.report-two-col{display:grid;grid-template-columns:1fr 1fr;gap:6px}.report-full{grid-column:1/-1}.panel{border:1px solid #dce7e5;border-radius:8px;padding:7px 8px;background:#fbfdfc;break-inside:avoid;font-size:9.4px;line-height:1.62}.small{font-size:8.7px;color:#718687}.h2{font-family:"IBM Plex Sans Arabic";font-size:14px}.row{display:flex;align-items:center;gap:7px}.between{justify-content:space-between}.mt8{margin-top:5px}.mt12{margin-top:7px}.mt16{margin-top:9px}.badge{font-size:8.5px;background:#eaf4f2;color:#0f4f4d;border-radius:999px;padding:2px 5px}.notice{border:1px solid #eadcb8;background:#fffaf0;padding:7px 8px;border-radius:8px;font-size:9px}'
     +'.report-metric{padding:6px 0;border-bottom:1px solid #edf2f1}.report-bar{height:6px;border-radius:99px;background:#edf3f2;overflow:hidden}.report-bar span{display:block;height:100%;background:linear-gradient(90deg,#176d68,#8c6a50);width:var(--w)}'
     +'.analysis-overview{display:grid;grid-template-columns:90px 1fr;gap:9px;align-items:center}.analysis-ring{--p:0;width:84px;height:84px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at center,#fff 55%,transparent 56%),conic-gradient(#0f4f4d calc(var(--p)*1%),#e7efed 0)}.analysis-ring span{font-size:16px;font-weight:800;color:#0f4f4d}.analysis-ring small{font-size:7px;color:#718687}.analysis-highlights{display:flex;flex-direction:column;gap:5px}.analysis-note{border:1px solid #dbe7e4;border-radius:8px;padding:5px 7px}.analysis-note.good{background:#eef8f3}.analysis-note.warn{background:#fff8e8}.analysis-note small,.analysis-note span{display:block;font-size:7.7px}.analysis-note strong{display:block;font-size:9px}'
     +'.analysis-bars{display:grid;gap:5px}.analysis-bar-row{display:grid;grid-template-columns:68px 1fr 32px;gap:6px;align-items:center}.analysis-bar-row strong{font-size:8.5px}.analysis-bar-track{height:6px;background:#edf3f2;border-radius:99px;overflow:hidden}.analysis-bar-fill{height:100%;background:linear-gradient(90deg,#0f4f4d,#8c6a50);width:var(--w)}.analysis-bar-row span{font-size:7.7px;color:#718687}.analysis-spark{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;align-items:end;height:58px;padding:5px 4px 2px;border-bottom:1px solid #dbe7e4}.analysis-spark-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:2px}.analysis-spark-bar{width:18px;max-width:100%;min-height:4px;border-radius:4px 4px 2px 2px;background:#0f4f4d;height:var(--h)}.analysis-spark-col small{font-size:7px;color:#718687}'
@@ -1945,7 +1945,7 @@ function openExecutionEvidence(studentId){
     if(!data.name){showToast('اكتب اسم الطالب أولًا.');return}
     openSignatureStep(studentId,'evidence',action=>{
       if(action==='back'){openExecutionEvidence(studentId);return}
-      const fakeClass={grade:data.grade,name:data.className,subject:''};
+      const fakeClass={grade:data.grade,name:data.className,subject:studentId?classSubject(state.students.find(s=>s.id===studentId)?.classId):''};
       const body='<div class="panel"><div class="section-title">عنوان الشاهد</div><div>'+(data.title||'—')+'</div></div><div class="panel mt12"><div class="section-title">وصف التنفيذ</div><div>'+(data.desc||'—')+'</div></div><div class="panel mt12"><div class="section-title">النتيجة أو الأثر</div><div>'+(data.result||'—')+'</div></div><div class="panel mt12"><div class="section-title">التوصية التالية</div><div>'+(data.next||'—')+'</div></div>';
       openPrintWindow('شاهد تنفيذ',data.name,fakeClass,body,state.reportSignatures,state.tempPlanEvidence);
       setTimeout(()=>{state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));state.tempPlanEvidence=[]},1500);
