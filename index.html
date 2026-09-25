@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.38</title>
+<title>ركّز — موقع تجريبي v0.39</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -531,6 +531,12 @@ function renderEvidenceSlots(target){
   const el=typeof target==='string'?q(target,sheet):target;if(!el)return;
   const imgs=(state.tempPlanEvidence||[]).slice(0,4);
   el.innerHTML=Array.from({length:4},(_,i)=>imgs[i]?'<div class="evidence-preview-slot"><img src="'+imgs[i]+'"></div>':'<div class="evidence-preview-slot"><span>صورة '+(i+1)+'</span></div>').join('');
+}
+function addTempEvidenceFiles(files){
+  const picked=[...(files||[])].filter(f=>String(f.type||'').startsWith('image/'));
+  const remaining=Math.max(0,4-state.tempPlanEvidence.length);
+  picked.slice(0,remaining).forEach(f=>state.tempPlanEvidence.push(URL.createObjectURL(f)));
+  if(picked.length>remaining)showToast('الحد الأقصى 4 صور للشواهد.');
 }
 function openReportSettings(){
   const b=state.reportBranding,sig=state.reportSignatures;
@@ -1549,7 +1555,7 @@ function openRemedialPlan(studentId){
     +'<div class="label mt8">المتابعة والقياس</div><textarea class="field" id="rpFollow"></textarea>'
     +'<div class="label mt8">التوصيات</div><textarea class="field" id="rpRecommendations"></textarea>'
     +'<div class="label mt8">ملاحظات خاصة — اختياري</div><textarea class="field" id="rpNotes"></textarea></div>'
-    +'<div class="form-section"><div class="form-section-title">5) شواهد مؤقتة</div><input class="field" id="rpEvidence" type="file" accept="image/*" capture="environment" multiple><div class="small mt8">حتى 4 صور صغيرة مرتبة في التقرير. تستخدم في المعاينة والطباعة فقط ثم تُمسح.</div><div id="rpEvidenceGrid" class="evidence-preview-grid"></div></div>'
+    +'<div class="form-section"><div class="form-section-title">5) شواهد مؤقتة</div><div class="grid2"><label class="btn soft" for="rpEvidenceCamera">تصوير الآن</label><label class="btn soft" for="rpEvidenceGallery">اختيار من الصور</label></div><input id="rpEvidenceCamera" type="file" accept="image/*" capture="environment" hidden><input id="rpEvidenceGallery" type="file" accept="image/*" multiple hidden><div class="small mt8">يمكن الجمع بين التصوير والاستوديو، حتى 4 صور. تستخدم في المعاينة والطباعة فقط ثم تُمسح.</div><div id="rpEvidenceGrid" class="evidence-preview-grid"></div></div>'
     +'<button class="btn primary mt16" id="rpToPreview" style="width:100%">معاينة الخطة قبل الطباعة</button>');
   wireSmartClose();
 
@@ -1583,11 +1589,15 @@ function openRemedialPlan(studentId){
     showToast('تمت تعبئة مسودة الخطة. عدّل ما تحتاجه قبل المعاينة.');
   };
   renderEvidenceSlots('#rpEvidenceGrid');
-  q('#rpEvidence',sheet).onchange=e=>{
-    state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));
-    state.tempPlanEvidence=[...e.target.files].slice(0,4).map(f=>URL.createObjectURL(f));
+  q('#rpEvidenceCamera',sheet).onchange=e=>{
+    addTempEvidenceFiles(e.target.files);
     renderEvidenceSlots('#rpEvidenceGrid');
-    if((e.target.files?.length||0)>4)showToast('سيتم استخدام أول 4 صور فقط.');
+    e.target.value='';
+  };
+  q('#rpEvidenceGallery',sheet).onchange=e=>{
+    addTempEvidenceFiles(e.target.files);
+    renderEvidenceSlots('#rpEvidenceGrid');
+    e.target.value='';
   };
   q('#rpToPreview',sheet).onclick=()=>{
     const data={
@@ -1630,7 +1640,7 @@ function openExecutionEvidence(studentId){
   openReportSheet(base.html
     +(studentId?'<div class="smart-strip mt12"><span>يمكن بناء مسودة الشاهد من المتابعات المسجلة.</span><button id="evSmartFill">تعبئة ذكية</button></div>':'<div class="notice mt12">طالب خارجي: أدخل تفاصيل التنفيذ يدويًا.</div>')
     +'<div class="form-section"><div class="form-section-title">بيانات التنفيذ</div><div class="label">عنوان الشاهد / النشاط</div><input class="field" id="evTitle" placeholder="مثال: تنفيذ نشاط علاجي"><div class="label mt8">وصف التنفيذ</div><textarea class="field" id="evDesc"></textarea><div class="label mt8">النتيجة أو الأثر</div><textarea class="field" id="evResult"></textarea><div class="label mt8">التوصية التالية</div><textarea class="field" id="evNext"></textarea></div>'
-    +'<div class="form-section"><div class="form-section-title">صور الشاهد</div><input class="field" id="evFiles" type="file" accept="image/*" capture="environment" multiple><div class="small mt8">حتى 4 صور مرتبة. تستخدم في الطباعة فقط ثم تُمسح من الجلسة.</div><div id="evEvidenceGrid" class="evidence-preview-grid"></div></div>'
+    +'<div class="form-section"><div class="form-section-title">صور الشاهد</div><div class="grid2"><label class="btn soft" for="evCamera">تصوير الآن</label><label class="btn soft" for="evGallery">اختيار من الصور</label></div><input id="evCamera" type="file" accept="image/*" capture="environment" hidden><input id="evGallery" type="file" accept="image/*" multiple hidden><div class="small mt8">يمكن التصوير أو اختيار صور من الاستوديو أو الجمع بينهما، حتى 4 صور.</div><div id="evEvidenceGrid" class="evidence-preview-grid"></div></div>'
     +'<button class="btn primary mt16" id="evPrint" style="width:100%">معاينة الشاهد والطباعة</button>');
   wireSmartClose();
   function fill(){
@@ -1644,11 +1654,15 @@ function openExecutionEvidence(studentId){
   }
   fill();if(q('#evSmartFill',sheet))q('#evSmartFill',sheet).onclick=fill;
   renderEvidenceSlots('#evEvidenceGrid');
-  q('#evFiles',sheet).onchange=e=>{
-    state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));
-    state.tempPlanEvidence=[...e.target.files].slice(0,4).map(f=>URL.createObjectURL(f));
+  q('#evCamera',sheet).onchange=e=>{
+    addTempEvidenceFiles(e.target.files);
     renderEvidenceSlots('#evEvidenceGrid');
-    if((e.target.files?.length||0)>4)showToast('سيتم استخدام أول 4 صور فقط.');
+    e.target.value='';
+  };
+  q('#evGallery',sheet).onchange=e=>{
+    addTempEvidenceFiles(e.target.files);
+    renderEvidenceSlots('#evEvidenceGrid');
+    e.target.value='';
   };
   q('#evPrint',sheet).onclick=()=>{
     const data={name:q('#srName',sheet).value.trim(),grade:q('#srGrade',sheet).value.trim(),className:q('#srClass',sheet).value.trim(),title:q('#evTitle',sheet).value.trim(),desc:q('#evDesc',sheet).value.trim(),result:q('#evResult',sheet).value.trim(),next:q('#evNext',sheet).value.trim()};
