@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.56</title>
+<title>ركّز — موقع تجريبي v0.57</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -375,6 +375,16 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
         </div>
       </div>
 
+      <div id="homeworkTools" class="hidden">
+        <div class="card pad">
+          <div class="row between">
+            <div><div class="section-title" style="margin:0">واجبات الفصل</div><div class="small">كل واجب مستقل بدرجته وطلابه</div></div>
+            <button class="btn primary" id="addHomeworkBtn" style="min-height:40px">+ إضافة واجب</button>
+          </div>
+        </div>
+        <div id="homeworkCards" class="test-cards mt12"></div>
+      </div>
+
       <div id="testTools" class="hidden">
         <div class="card pad">
           <div class="row between">
@@ -507,6 +517,7 @@ const state={
   attendanceGrade:{max:10,mode:'decrease',present:0,absent:-1,late:-0.5,excused:0},
   events:[],
   tests:[],
+  homeworks:[],
   evalFollow:{},
   bulkContext:null,
   lessonTitles:{},
@@ -532,14 +543,7 @@ const state={
         {id:'p1d',name:'عدم تفاعل',value:-1}
       ]}
     ],
-    homework:[
-      {id:'h1',name:'الواجب',max:10,base:'zero',mode:'increase',subs:[
-        {id:'h1a',name:'كامل',value:2},
-        {id:'h1b',name:'ناقص',value:-1},
-        {id:'h1c',name:'لم يحضر',value:-2},
-        {id:'h1d',name:'تعويض الواجب',value:2}
-      ]}
-    ],
+    homework:[],
     behavior:[
       {id:'b1',name:'السلوك',max:10,base:'full',mode:'decrease',subs:[
         {id:'b1a',name:'مشاغب',value:-1},
@@ -1087,7 +1091,7 @@ function cycleAtt(sid){
 }
 
 function moduleSource(){
-  if(['participation','homework','behavior'].includes(state.module))return state.items[state.module];
+  if(['participation','behavior'].includes(state.module))return state.items[state.module];
   if(state.module.startsWith('custom:')){
     const id=state.module.split(':')[1]; return state.items.custom.filter(x=>x.id===id);
   }
@@ -1120,7 +1124,7 @@ function attendanceScoreFor(studentId){
   return val;
 }
 function followupAllocatedTotal(){
-  const builtins=['participation','homework','behavior']
+  const builtins=['participation','behavior']
     .flatMap(k=>state.items[k]||[])
     .reduce((a,x)=>a+Number(x.max||0),0);
   const custom=(state.items.custom||[]).reduce((a,x)=>a+Number(x.max||0),0);
@@ -1202,6 +1206,134 @@ function renderModuleTabs(){
   qa('[data-module]',box).forEach(b=>b.addEventListener('click',()=>{state.module=b.dataset.module;renderFollowup()}));
   q('#addMainItem',box).addEventListener('click',openAddMainItem);
 }
+function homeworkStatusLabel(status){return ({complete:'مكتمل',incomplete:'ناقص',missing:'لم يسلم',excused:'معذور'})[status]||'—'}
+function homeworkEvents(homeworkId){return state.events.filter(e=>e.module==='homework'&&e.homeworkId===homeworkId)}
+function homeworkClassIdFromEvent(e){
+  const st=state.students.find(s=>s.id===e.studentId);
+  return e.classId||st?.classId||null;
+}
+function ensureHomeworkRegistry(){
+  const legacy=state.events.filter(e=>e.module==='homework'&&!e.homeworkId);
+  const groups=new Map();
+  legacy.forEach(e=>{
+    const classId=homeworkClassIdFromEvent(e);if(!classId)return;
+    const key=[classId,e.date||'',e.mainId||'legacy'].join('|');
+    if(!groups.has(key)){
+      const legacyMain=(state.items.homework||[]).find(x=>x.id===e.mainId);
+      groups.set(key,{id:'legacy-hw-'+key,classId,subject:classSubject(classId),name:legacyMain?.name||'واجب سابق',max:Number(legacyMain?.max)||10,date:e.date||state.date,createdAt:e.createdAt||''});
+    }
+    e.homeworkId='legacy-hw-'+key;
+    e.max=Number(e.max)||groups.get(key).max;
+    if(!e.homeworkStatus)e.homeworkStatus=Number(e.value)<=0?'missing':'complete';
+  });
+  groups.forEach(hw=>{if(!state.homeworks.some(x=>x.id===hw.id))state.homeworks.push(hw)});
+}
+function homeworksForCurrentClass(){
+  ensureHomeworkRegistry();
+  return state.homeworks.filter(hw=>hw.classId===state.classId).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(b.id).localeCompare(String(a.id)));
+}
+function ensureHomeworkDefinition(meta){
+  if(meta.homeworkId){
+    const existing=state.homeworks.find(hw=>hw.id===meta.homeworkId);
+    if(existing)return existing;
+  }
+  const hw={id:'hw'+Date.now()+Math.random().toString(36).slice(2,6),classId:state.classId,subject:classSubject(state.classId),name:meta.name||'واجب',max:Number(meta.max)||5,date:meta.date||state.date,createdAt:new Date().toISOString()};
+  state.homeworks.push(hw);meta.homeworkId=hw.id;return hw;
+}
+function renderHomeworkCards(){
+  const box=q('#homeworkCards');if(!box)return;
+  const homeworks=homeworksForCurrentClass();
+  if(!homeworks.length){
+    box.innerHTML='<div class="test-empty">لا يوجد واجب مضاف لهذا الفصل بعد.<br>اضغط «+ إضافة واجب» وحدد اسمه ودرجته.</div>';
+    return;
+  }
+  box.innerHTML=homeworks.map(hw=>{
+    const rows=homeworkEvents(hw.id),total=currentStudents().length;
+    const graded=rows.filter(e=>Number.isFinite(Number(e.value)));
+    const submitted=rows.filter(e=>e.homeworkStatus==='complete'||e.homeworkStatus==='incomplete').length;
+    const missing=rows.filter(e=>e.homeworkStatus==='missing').length;
+    const avg=graded.length&&hw.max?Math.round(graded.reduce((a,e)=>a+(Number(e.value)/Number(hw.max))*100,0)/graded.length):null;
+    return `<div class="test-card">
+      <div class="test-card-head">
+        <div class="test-card-title"><strong>${hw.name}</strong><span>${hw.date} · ${hw.subject||classSubject(hw.classId)}</span></div>
+        <span class="scorepill">/${hw.max}</span>
+      </div>
+      <div class="test-card-meta">
+        <span class="test-card-stat">${graded.length}/${total} رصد</span>
+        <span class="test-card-stat">${submitted} سلّموا</span>
+        ${missing?`<span class="test-card-stat">${missing} لم يسلم</span>`:''}
+        ${avg!==null?`<span class="test-card-stat">المتوسط ${avg}%</span>`:''}
+      </div>
+      <div class="test-card-actions">
+        <button class="btn soft" data-open-homework="${hw.id}">عرض النتائج</button>
+        <button class="btn primary" data-grade-homework="${hw.id}">${graded.length?'تعديل الرصد':'رصد الطلاب'}</button>
+      </div>
+    </div>`;
+  }).join('');
+  qa('[data-open-homework]',box).forEach(b=>b.onclick=()=>openHomeworkResults(b.dataset.openHomework));
+  qa('[data-grade-homework]',box).forEach(b=>b.onclick=()=>openHomeworkGrades(b.dataset.gradeHomework));
+}
+function openAddHomework(){
+  const n=homeworksForCurrentClass().length+1;
+  openSheet(`<div class="h2">إضافة واجب</div><div class="small mt8">كل واجب يُحفظ كبطاقة مستقلة بنتائجه.</div>
+    <div class="label mt16">اسم الواجب</div><input class="field" id="homeworkName" value="واجب ${n}">
+    <div class="grid2 mt12"><div><div class="label">الدرجة</div><input class="field" id="homeworkMax" type="number" min=".25" step=".25" value="5"></div><div><div class="label">التاريخ</div><input class="field" id="homeworkDate" type="date" value="${state.date}"></div></div>
+    <button class="btn primary mt16" id="saveHomework" style="width:100%">إنشاء الواجب ورصد الطلاب</button>`);
+  q('#saveHomework',sheet).onclick=()=>{
+    const name=q('#homeworkName',sheet).value.trim()||'واجب',max=Number(q('#homeworkMax',sheet).value),date=q('#homeworkDate',sheet).value||state.date;
+    if(!Number.isFinite(max)||max<=0){showToast('حدد درجة صحيحة للواجب.');return}
+    const hw=ensureHomeworkDefinition({name,max,date});openHomeworkGrades(hw.id);
+  };
+}
+function openHomeworkResults(homeworkId){
+  const hw=state.homeworks.find(x=>x.id===homeworkId);if(!hw)return;
+  const byStudent=new Map(homeworkEvents(homeworkId).map(e=>[e.studentId,e]));
+  const students=state.students.filter(s=>s.classId===hw.classId);
+  openSheet(`<div class="row between"><div><div class="h2">${hw.name}</div><div class="small">درجة الواجب /${hw.max} · ${hw.date}</div></div><button class="iconbtn" id="hwResultClose">×</button></div>
+    <div class="panel mt16">${students.map(st=>{const e=byStudent.get(st.id);return `<div class="test-result-row"><div class="test-result-name"><strong>${st.name}</strong><span>${e?homeworkStatusLabel(e.homeworkStatus):'لم يرصد بعد'}</span></div><span class="scorepill">${e&&Number.isFinite(Number(e.value))?`${e.value}/${hw.max}`:'—'}</span></div>`}).join('')}</div>
+    <button class="btn primary mt12" id="editHomeworkGrades" style="width:100%">إدخال / تعديل الرصد</button>`);
+  q('#hwResultClose',sheet).onclick=closeSheet;
+  q('#editHomeworkGrades',sheet).onclick=()=>openHomeworkGrades(homeworkId);
+}
+function openHomeworkGrades(homeworkId){
+  const hw=state.homeworks.find(x=>x.id===homeworkId);if(!hw)return;
+  const existing=new Map(homeworkEvents(hw.id).map(e=>[e.studentId,e]));
+  sheet.innerHTML=`<div class="row between"><div><div class="h2">${hw.name} /${hw.max}</div><div class="small">حدد الحالة والدرجة لكل طالب.</div></div><button class="iconbtn" id="homeworkGradeClose">×</button></div>
+    <div class="mt12">${currentStudents().map(st=>{const e=existing.get(st.id);return `<div class="panel mt8" data-homework-row="${st.id}"><div class="sname">${st.name}</div><div class="grid2 mt8"><select class="field" data-homework-status="${st.id}"><option value="">لم يرصد</option><option value="complete" ${e?.homeworkStatus==='complete'?'selected':''}>مكتمل</option><option value="incomplete" ${e?.homeworkStatus==='incomplete'?'selected':''}>ناقص</option><option value="missing" ${e?.homeworkStatus==='missing'?'selected':''}>لم يسلم</option><option value="excused" ${e?.homeworkStatus==='excused'?'selected':''}>معذور</option></select><input class="field" type="number" min="0" max="${hw.max}" step=".25" data-homework-grade="${st.id}" value="${e?.value??''}" placeholder="الدرجة"></div></div>`}).join('')}</div>
+    <button class="btn primary mt16" id="saveHomeworkGrades" style="width:100%">حفظ رصد الواجب</button>`;
+  q('#homeworkGradeClose',sheet).onclick=closeSheet;
+  qa('[data-homework-status]',sheet).forEach(sel=>sel.onchange=()=>{
+    const sid=sel.dataset.homeworkStatus,inp=q('[data-homework-grade="'+sid+'"]',sheet);
+    if(sel.value==='complete')inp.value=hw.max;
+    if(sel.value==='missing')inp.value=0;
+    if(sel.value==='excused')inp.value='';
+    if(sel.value==='incomplete'&&inp.value==='')inp.value=Math.max(0,hw.max/2);
+  });
+  q('#saveHomeworkGrades',sheet).onclick=()=>{
+    let bad=false;
+    currentStudents().forEach(st=>{
+      const status=q('[data-homework-status="'+st.id+'"]',sheet).value;
+      const inp=q('[data-homework-grade="'+st.id+'"]',sheet),v=inp.value===''?null:Number(inp.value);
+      if(v!=null&&(!Number.isFinite(v)||v<0||v>hw.max))bad=true;
+      if(status&&status!=='excused'&&v==null)bad=true;
+    });
+    if(bad){showToast('راجع حالات ودرجات الطلاب قبل الحفظ.');return}
+    currentStudents().forEach(st=>{
+      const status=q('[data-homework-status="'+st.id+'"]',sheet).value;
+      const inp=q('[data-homework-grade="'+st.id+'"]',sheet),v=inp.value===''?null:Number(inp.value);
+      let old=state.events.find(e=>e.module==='homework'&&e.homeworkId===hw.id&&e.studentId===st.id);
+      if(!status&&!Number.isFinite(v)){if(old)state.events=state.events.filter(e=>e!==old);return}
+      const follow=status==='missing'||status==='incomplete';
+      if(old){
+        old.value=v;old.max=hw.max;old.homeworkStatus=status;old.label=hw.name;old.follow=follow;old.resolved=!follow;old.date=hw.date;old.classId=hw.classId;old.updatedAt=new Date().toISOString();
+      }else{
+        state.events.push({id:'e'+Date.now()+Math.random(),homeworkId:hw.id,classId:hw.classId,studentId:st.id,date:hw.date,module:'homework',label:hw.name,value:v,max:hw.max,homeworkStatus:status,follow,resolved:!follow,createdAt:new Date().toISOString()});
+      }
+    });
+    closeSheet();renderFollowup();showToast('تم حفظ رصد «'+hw.name+'».','');
+  };
+}
+
 function testTypeLabel(type){return ({period:'فترة',final:'نهائي',short:'قصير',other:'أخرى'})[type]||'اختبار'}
 function testClassIdFromEvent(e){
   const st=state.students.find(s=>s.id===e.studentId);
@@ -1283,8 +1415,10 @@ function openExistingTestGrades(testId){
 
 function renderTools(){
   q('#attendanceTools').classList.toggle('hidden',state.module!=='attendance');
-  q('#itemTools').classList.toggle('hidden',!(state.module==='participation'||state.module==='homework'||state.module==='behavior'||state.module.startsWith('custom:')));
+  q('#itemTools').classList.toggle('hidden',!(state.module==='participation'||state.module==='behavior'||state.module.startsWith('custom:')));
+  q('#homeworkTools').classList.toggle('hidden',state.module!=='homework');
   q('#testTools').classList.toggle('hidden',state.module!=='tests');
+  if(state.module==='homework')renderHomeworkCards();
   if(state.module==='tests')renderTestCards();
   if(state.module==='attendance'){
     q('#attendanceGradeDesc').textContent=`${state.attendanceGrade.mode==='increase'?'تزايد · يبدأ 0':'تناقص · يبدأ '+state.attendanceGrade.max}/${state.attendanceGrade.max} — غياب ${state.attendanceGrade.absent>0?'+':''}${state.attendanceGrade.absent}، تأخر ${state.attendanceGrade.late>0?'+':''}${state.attendanceGrade.late}`;
@@ -1326,6 +1460,7 @@ q('#applySelectedToAll').addEventListener('click',()=>{
   renderStudents();
 });
 q('#attendanceGradeBtn').addEventListener('click',()=>openAttendanceGrade());
+q('#addHomeworkBtn').addEventListener('click',openAddHomework);
 function openAttendanceGrade(){
   const g=state.attendanceGrade;
   openSheet(`<div class="h2">درجة الحضور</div>
@@ -1401,6 +1536,11 @@ function bindParticipationLongPress(box){
 }
 function renderStudents(){
   const box=q('#studentList');
+  if(state.module==='homework'){
+    box.classList.add('hidden');
+    renderHomeworkCards();
+    return;
+  }
   if(state.module==='tests'){
     box.classList.add('hidden');
     renderTestCards();
@@ -1524,7 +1664,7 @@ function openStudentCard(id){
   const st=state.students.find(x=>x.id===id); if(!st)return;
   const ev=state.events.filter(e=>e.studentId===id).slice(-8).reverse();
   const alerts=state.events.filter(e=>e.studentId===id&&e.follow&&!e.resolved).slice().reverse();
-  const evalRows=['participation','homework','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat(state.items.custom||[]);
+  const evalRows=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat(state.items.custom||[]);
   openCompactSheet(
     '<div class="student-card-head"><div><div class="student-card-name">'+st.name+'</div><div class="student-card-meta">الكود '+(st.code||'بدون كود')+' · '+(state.classes.find(c=>c.id===st.classId)?.grade||'')+' · '+(state.classes.find(c=>c.id===st.classId)?.name||'')+'</div></div><button class="iconbtn" id="xclose">×</button></div>'
     +'<div class="student-card-stats"><div class="student-card-stat"><strong>'+(st.perf||0)+'</strong><span>الأداء</span></div><div class="student-card-stat"><strong>'+followCount(id)+'</strong><span>متابعة</span></div><div class="student-card-stat"><strong>'+noteCount(id)+'</strong><span>ملاحظات</span></div></div>'
@@ -1559,10 +1699,13 @@ function reportStats(studentId){
   const attendancePct=totalAtt?Math.round(((counts.present+counts.excused)/totalAtt)*100):100;
   const tests=state.events.filter(e=>e.studentId===studentId&&e.module==='tests'&&Number(e.max)>0);
   const testPct=tests.length?Math.round(tests.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/tests.length):0;
-  const itemRows=['participation','homework','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat(state.items.custom||[]).map(m=>{
+  const homeworkRows=state.events.filter(e=>e.studentId===studentId&&e.module==='homework'&&Number(e.max)>0&&Number.isFinite(Number(e.value)));
+  const homeworkPct=homeworkRows.length?Math.round(homeworkRows.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/homeworkRows.length):0;
+  const itemRows=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat(state.items.custom||[]).map(m=>{
     const value=scoreFor(studentId,m); return {name:m.name,value,max:m.max,pct:m.max?Math.round(value/m.max*100):0};
   });
-  return {st,counts,totalAtt,attendancePct,tests,testPct,itemRows,follow:followCount(studentId),notes:noteCount(studentId)};
+  if(homeworkRows.length)itemRows.splice(1,0,{name:'الواجبات',pct:homeworkPct});
+  return {st,counts,totalAtt,attendancePct,tests,testPct,homeworkRows,homeworkPct,itemRows,follow:followCount(studentId),notes:noteCount(studentId)};
 }
 function renderMetric(name,pct,detail){
   const p=Math.max(0,Math.min(100,Number(pct)||0));
