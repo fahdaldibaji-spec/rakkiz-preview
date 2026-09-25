@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.60</title>
+<title>ركّز — موقع تجريبي v0.61</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1054,14 +1054,27 @@ function shiftDate(days){
   const d=dateParts(state.date); d.setUTCDate(d.getUTCDate()+days);
   state.date=d.toISOString().slice(0,10); renderDate();renderStudents();
 }
+function gregDateText(iso,withWeekday=false){
+  const d=dateParts(iso);
+  return new Intl.DateTimeFormat('ar-SA',{weekday:withWeekday?'long':undefined,day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Riyadh'}).format(d);
+}
+function hijriDateText(iso){
+  const d=dateParts(iso);
+  try{
+    return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Riyadh'}).format(d);
+  }catch{return ''}
+}
+function dualDateText(iso){
+  if(!iso)return '';
+  const g=gregDateText(iso,false),h=hijriDateText(iso);
+  return h?g+' · '+h:g;
+}
 function renderDate(){
   const d=dateParts(state.date);
   const lessonText=q('#lessonTitleText');
   if(lessonText)lessonText.textContent=getLessonTitle()||'إضافة اسم الدرس';
-  q('#gregDate').textContent=new Intl.DateTimeFormat('ar-SA',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Riyadh'}).format(d);
-  try{
-    q('#hijriDate').textContent=new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Riyadh'}).format(d);
-  }catch{q('#hijriDate').textContent='التاريخ الهجري'}
+  q('#gregDate').textContent=gregDateText(state.date,true);
+  q('#hijriDate').textContent=hijriDateText(state.date)||'التاريخ الهجري'
   q('#dayState').textContent=state.date==='2026-09-24'?'اليوم':'سجل سابق قابل للتعديل';
 }
 q('#prevDay').addEventListener('click',()=>shiftDate(-1));
@@ -1255,7 +1268,7 @@ function renderHomeworkCards(){
     const avg=graded.length&&hw.max?Math.round(graded.reduce((a,e)=>a+(Number(e.value)/Number(hw.max))*100,0)/graded.length):null;
     return `<div class="test-card homework-card-click" data-open-homework-card="${hw.id}" role="button" tabindex="0">
       <div class="test-card-head">
-        <div class="test-card-title"><strong>${hw.name}</strong><span>${hw.date} · ${hw.subject||classSubject(hw.classId)}</span></div>
+        <div class="test-card-title"><strong>${hw.name}</strong><span>${dualDateText(hw.date)} · ${hw.subject||classSubject(hw.classId)}</span></div>
         <span class="scorepill">/${hw.max}</span>
       </div>
       <div class="test-card-meta">
@@ -1328,7 +1341,7 @@ function openHomeworkQuick(homeworkId){
     const students=state.students.filter(s=>s.classId===hw.classId);
     const complete=[...byStudent.values()].filter(e=>e.homeworkStatus==='complete').length;
     const missing=[...byStudent.values()].filter(e=>e.homeworkStatus==='missing').length;
-    let html='<div class="row between"><div><div class="h2">'+htmlEsc(hw.name)+'</div><div class="small">درجة الواجب /'+htmlEsc(hw.max)+' · '+htmlEsc(hw.date)+'</div></div><button class="iconbtn" id="homeworkQuickClose">×</button></div>';
+    let html='<div class="row between"><div><div class="h2">'+htmlEsc(hw.name)+'</div><div class="small">درجة الواجب /'+htmlEsc(hw.max)+'<br>'+htmlEsc(dualDateText(hw.date))+'</div></div><button class="iconbtn" id="homeworkQuickClose">×</button></div>';
     html+='<div class="notice mt12">اضغط الطالب: <strong>أول ضغطة = تم الرصد</strong> بالدرجة كاملة، <strong>ثاني ضغطة = لم يحضر</strong>، والثالثة تلغي الحالة.</div>';
     html+='<div class="homework-legend"><span>✓ أخضر = تم الرصد</span><span>✕ أحمر = لم يحضر</span><span>أبيض = غير مرصود</span></div>';
     html+='<div class="row between mt12"><span class="badge">'+complete+' مرصود</span><span class="badge">'+missing+' لم يحضر</span></div>';
@@ -1361,7 +1374,7 @@ function openHomeworkResults(homeworkId){openHomeworkQuick(homeworkId)}
 function openHomeworkGrades(homeworkId){
   const hw=state.homeworks.find(x=>x.id===homeworkId);if(!hw)return;
   const existing=new Map(homeworkEvents(hw.id).map(e=>[e.studentId,e]));
-  sheet.innerHTML=`<div class="row between"><div><div class="h2">${hw.name} /${hw.max}</div><div class="small">حدد الحالة والدرجة لكل طالب.</div></div><button class="iconbtn" id="homeworkGradeClose">×</button></div>
+  sheet.innerHTML=`<div class="row between"><div><div class="h2">${hw.name} /${hw.max}</div><div class="small">${dualDateText(hw.date)}</div></div><button class="iconbtn" id="homeworkGradeClose">×</button></div>
     <div class="mt12">${currentStudents().map(st=>{const e=existing.get(st.id);return `<div class="panel mt8" data-homework-row="${st.id}"><div class="sname">${st.name}</div><div class="grid2 mt8"><select class="field" data-homework-status="${st.id}"><option value="">لم يرصد</option><option value="complete" ${e?.homeworkStatus==='complete'?'selected':''}>مكتمل</option><option value="incomplete" ${e?.homeworkStatus==='incomplete'?'selected':''}>ناقص</option><option value="missing" ${e?.homeworkStatus==='missing'?'selected':''}>لم يحضر</option><option value="excused" ${e?.homeworkStatus==='excused'?'selected':''}>معذور</option></select><input class="field" type="number" min="0" max="${hw.max}" step=".25" data-homework-grade="${st.id}" value="${e?.value??''}" placeholder="الدرجة"></div></div>`}).join('')}</div>
     <button class="btn primary mt16" id="saveHomeworkGrades" style="width:100%">حفظ رصد الواجب</button>`;
   q('#homeworkGradeClose',sheet).onclick=closeSheet;
@@ -1442,7 +1455,7 @@ function renderTestCards(){
     const avg=valid.length&&t.max?Math.round(valid.reduce((a,g)=>a+(Number(g.value)/Number(t.max))*100,0)/valid.length):null;
     return `<div class="test-card" data-test-card="${t.id}">
       <div class="test-card-head">
-        <div class="test-card-title"><strong>${t.name}</strong><span>${testTypeLabel(t.type)} · ${t.date||''}</span></div>
+        <div class="test-card-title"><strong>${t.name}</strong><span>${testTypeLabel(t.type)} · ${dualDateText(t.date)}</span></div>
         <span class="scorepill">/${t.max}</span>
       </div>
       <div class="test-card-meta">
@@ -1463,7 +1476,7 @@ function openTestResults(testId){
   const t=state.tests.find(x=>x.id===testId);if(!t)return;
   const grades=testGrades(testId), byStudent=new Map(grades.map(g=>[g.studentId,g]));
   const students=state.students.filter(s=>s.classId===t.classId);
-  openSheet(`<div class="row between"><div><div class="h2">${t.name}</div><div class="small">${testTypeLabel(t.type)} · / ${t.max} · ${t.date}</div></div><button class="iconbtn" id="testResultClose">×</button></div>
+  openSheet(`<div class="row between"><div><div class="h2">${t.name}</div><div class="small">${testTypeLabel(t.type)} · / ${t.max}<br>${dualDateText(t.date)}</div></div><button class="iconbtn" id="testResultClose">×</button></div>
     <div class="panel mt16">
       ${students.map(st=>{const g=byStudent.get(st.id);return `<div class="test-result-row"><div class="test-result-name"><strong>${st.name}</strong><span>${g?'تم رصد الدرجة':'لم ترصد بعد'}</span></div><span class="scorepill">${g?`${g.value}/${t.max}`:'—'}</span></div>`}).join('')}
     </div>
@@ -1477,7 +1490,7 @@ function openExistingTestGrades(testId){
 function openTestGradeMethods(testId){
   const t=state.tests.find(x=>x.id===testId);if(!t)return;
   const count=testGrades(t.id).length;
-  openSheet(`<div class="row between"><div><div class="h2">${t.name}</div><div class="small">${testTypeLabel(t.type)} · /${t.max} · ${t.date}</div></div><button class="iconbtn" id="testMethodsClose">×</button></div>
+  openSheet(`<div class="row between"><div><div class="h2">${t.name}</div><div class="small">${testTypeLabel(t.type)} · /${t.max}<br>${dualDateText(t.date)}</div></div><button class="iconbtn" id="testMethodsClose">×</button></div>
     <div class="notice mt12">${count?'يوجد '+count+' درجات محفوظة. أي طريقة تختارها ستعدّل نفس الاختبار ولن تنشئ اختبارًا جديدًا.':'اختر طريقة إدخال الدرجات لهذا الاختبار.'}</div>
     <div class="section-title mt16">طريقة إدخال الدرجات</div>
     <div class="grid2">
@@ -2544,37 +2557,34 @@ function openManageItems(){
 }
 
 function openAddGrades(){
-  openSheet(`<div class="h2">إضافة اختبار</div><div class="small mt8">أنشئ بطاقة الاختبار الآن، والدرجات تقدر تدخلها الآن أو ترجع لها لاحقًا.</div>
-  <div class="label mt16">اسم الاختبار أو التقييم</div><input id="testName" class="field" value="اختبار قصير 1">
+  openSheet(`<div class="h2">إضافة اختبار</div>
+  <div class="label mt16">اسم الاختبار</div><input id="testName" class="field" value="اختبار قصير 1">
   <div class="grid2 mt12"><div><div class="label">نوع الاختبار</div><select id="testType" class="field"><option value="period">فترة</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div><div><div class="label">الدرجة النهائية</div><input id="testMax" class="field" type="number" min=".25" step=".25" value="20"></div></div>
-  <div class="grid2 mt16">
-    <button class="btn primary" id="saveTestOnly" style="min-height:44px">حفظ الاختبار</button>
-    <button class="btn soft" id="saveAndManual" style="min-height:44px">حفظ + اختيار طريقة الإدخال</button>
-  </div>
-  <div class="notice mt12">«حفظ الاختبار» ينشئ البطاقة مباشرة بدون أي درجات. تقدر ترجع لها لاحقًا وتضغط «إدخال الدرجات».</div>
-  <div class="section-title mt16">أو أدخل الدرجات الآن بطريقة أخرى</div>
+  <button class="btn primary mt16" id="saveTestOnly" style="width:100%;min-height:44px">حفظ الاختبار</button>
+  <div class="section-title mt16">إدخال الدرجات الآن — اختياري</div>
   <div class="grid2">
-    <button class="toolcard" data-source="camera"><strong>تصوير كشف</strong><span>أسماء ودرجات مطبوعة أو مكتوبة</span></button>
-    <button class="toolcard" data-source="paper"><strong>صورة ورقة اختبار</strong><span>يقرأ الاسم/الكود والدرجة</span></button>
-    <button class="toolcard" data-source="excel"><strong>Excel</strong><span>مطابقة حسب الاسم داخل الفصل</span></button>
-    <button class="toolcard" data-source="pdf"><strong>PDF</strong><span>استخراج الأسماء والدرجات</span></button>
-  </div>`);
+    <button class="toolcard" data-source="camera"><strong>تصوير كشف</strong><span>أسماء ودرجات</span></button>
+    <button class="toolcard" data-source="paper"><strong>صورة ورقة اختبار</strong><span>الاسم/الكود والدرجة</span></button>
+    <button class="toolcard" data-source="excel"><strong>Excel</strong><span>مطابقة الطلاب</span></button>
+    <button class="toolcard" data-source="pdf"><strong>PDF</strong><span>استخراج الدرجات</span></button>
+  </div>
+  <button class="btn soft mt12" id="manualNewTestGrades" style="width:100%">إدخال يدوي</button>`);
   function meta(){
     const max=Number(q('#testMax',sheet).value);
     return {name:q('#testName',sheet).value.trim()||'اختبار',max:Number.isFinite(max)&&max>0?max:20,type:q('#testType',sheet).value||'other',date:state.date}
   }
   q('#saveTestOnly',sheet).onclick=()=>{
     const m=meta(),test=ensureTestDefinition(m);
-    closeSheet();renderFollowup();showToast('تم حفظ «'+test.name+'» ويمكن إدخال درجاته لاحقًا.','');
-  };
-  q('#saveAndManual',sheet).onclick=()=>{
-    const m=meta(),test=ensureTestDefinition(m);
-    openTestGradeMethods(test.id);
+    closeSheet();renderFollowup();showToast('تم حفظ «'+test.name+'».','');
   };
   qa('[data-source]',sheet).forEach(b=>b.onclick=()=>{
     const m=meta(),test=ensureTestDefinition(m);
     simulateImport(b.dataset.source,{testId:test.id,name:test.name,max:test.max,type:test.type,date:test.date});
   });
+  q('#manualNewTestGrades',sheet).onclick=()=>{
+    const m=meta(),test=ensureTestDefinition(m);
+    openManualGrades({testId:test.id,name:test.name,max:test.max,type:test.type,date:test.date},true);
+  };
 }
 function simulateImport(source,meta,existing=false){
   const srcNames={camera:'التصوير',paper:'ورقة الاختبار',excel:'Excel',pdf:'PDF'};
