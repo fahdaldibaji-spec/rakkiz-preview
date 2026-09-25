@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.80</title>
+<title>ركّز — موقع تجريبي v0.81</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -426,9 +426,9 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
     <section data-view="reports" class="hidden">
       <div class="h1">التقارير</div>
       <div class="small mt8">نماذج وتقارير جاهزة للمعلم. اختر النموذج أولًا، ثم حدد الطالب من ركّز أو من خارج التطبيق.</div>
-      <div class="card pad mt12 report-settings-entry">
+      <div class="card pad mt12 report-settings-entry" id="reportsReportSettingsCard">
         <div class="row between">
-          <div><strong>الترويسة والطباعة</strong><div class="small mt8" id="reportSettingsSummary">الشعارات · بيانات المدرسة · مواضع الترويسة · التوقيعات</div></div>
+          <div><strong>تهيئة الترويسة والطباعة</strong><div class="small mt8" id="reportSettingsSummary">تظهر مرة واحدة قبل استخدام التقارير، ثم تنتقل إلى الإعدادات.</div></div>
           <button class="btn brown" id="reportSettingsBtn" style="min-height:38px">إعداد</button>
         </div>
       </div>
@@ -455,6 +455,9 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
       </div>
       <div class="card pad mt12 hidden" id="accountAcademicCalendarCard">
         <div class="row between"><div><strong>التقويم الدراسي</strong><div class="small mt8" id="accountAcademicCalendarSummary">أيام الدوام · الفصول الدراسية</div></div><button class="btn brown" id="accountAcademicCalendarBtn" style="min-height:38px">تعديل</button></div>
+      </div>
+      <div class="card pad mt12 hidden" id="accountReportSettingsCard">
+        <div class="row between"><div><strong>الترويسة والطباعة</strong><div class="small mt8" id="accountReportSettingsSummary">الشعارات · بيانات المدرسة · التوقيعات</div></div><button class="btn brown" id="accountReportSettingsBtn" style="min-height:38px">تعديل</button></div>
       </div>
       <div class="card pad mt12">
         <div class="row between"><strong>الخدمة السحابية</strong><span class="badge">مفعلة</span></div>
@@ -548,6 +551,7 @@ const state={
   bulkContext:null,
   lessonTitles:{},
   reportClassId:'c1',
+  reportSettingsConfigured:false,
   noorSchoolProfile:{country:'المملكة العربية السعودية',educationAdmin:'',schoolName:'',schoolLogo:'',source:'noor'},
   reportBranding:{
     autoFromNoor:true,
@@ -589,7 +593,7 @@ const state={
 function q(s,r=app){return r.querySelector(s)}
 function qa(s,r=app){return [...r.querySelectorAll(s)]}
 function saveReportPrefs(){
-  try{localStorage.setItem('rakkiz_report_prefs_v1',JSON.stringify({branding:state.reportBranding,signatures:state.reportSignatures}))}catch{}
+  try{localStorage.setItem('rakkiz_report_prefs_v1',JSON.stringify({configured:!!state.reportSettingsConfigured,branding:state.reportBranding,signatures:state.reportSignatures}))}catch{}
 }
 function saveTeacherWeek(){try{localStorage.setItem('rakkiz_teacher_week_v1',JSON.stringify(state.teacherWeek))}catch{}}
 function saveAcademicTerms(){try{localStorage.setItem('rakkiz_academic_terms_v1',JSON.stringify(state.academicTerms))}catch{}}
@@ -610,9 +614,10 @@ function loadTeacherWeek(){
 }
 function loadReportPrefs(){
   try{
-    const x=JSON.parse(localStorage.getItem('rakkiz_report_prefs_v1')||'null');
+    const raw=localStorage.getItem('rakkiz_report_prefs_v1'),x=JSON.parse(raw||'null');
     if(x?.branding)state.reportBranding={...state.reportBranding,...x.branding};
     if(x?.signatures)state.reportSignatures={...state.reportSignatures,...x.signatures};
+    if(x)state.reportSettingsConfigured=typeof x.configured==='boolean'?x.configured:true;
   }catch{}
 }
 loadReportPrefs();loadTeacherWeek();loadAcademicTerms();
@@ -641,14 +646,20 @@ function renderAccount(){
   if(calSummary)calSummary.textContent=t.configured?'تم إعداد التقويم':'تهيئة أولى · '+(w.country||'')+(days?' · '+days:'');
   const accountSummary=q('#accountAcademicCalendarSummary');
   if(accountSummary)accountSummary.textContent=termName(t.current)+' · '+t.count+' فصول'+(t.smartSource?' · تعبئة ذكية':'')+(days?' · '+days:'');
-  const el=q('#reportSettingsSummary');if(!el)return;
+  const reportsSetup=q('#reportsReportSettingsCard'),accountReport=q('#accountReportSettingsCard');
+  if(reportsSetup)reportsSetup.classList.toggle('hidden',!!state.reportSettingsConfigured);
+  if(accountReport)accountReport.classList.toggle('hidden',!state.reportSettingsConfigured);
   const b=effectiveReportBranding(), parts=[];
-  if(b.showMinistry&&b.ministryLogo)parts.push('شعار الوزارة');
+  if(b.showMinistry)parts.push('وزارة التعليم');
   if(b.showSchoolLogo&&b.schoolLogo)parts.push('شعار المدرسة');
   if(b.showSchoolName&&b.schoolName)parts.push(b.schoolName);
   const sigCount=['right','center','left'].filter(k=>state.reportSignatures[k+'Enabled']).length;
-  parts.push(sigCount+' توقيع افتراضي');
-  el.textContent=parts.join(' · ');
+  parts.push(sigCount+' توقيع');
+  const summaryText=parts.join(' · ');
+  const el=q('#reportSettingsSummary');if(el)el.textContent=state.reportSettingsConfigured?summaryText:'اضبط الترويسة والتوقيعات مرة واحدة قبل الطباعة';
+  const accountReportSummary=q('#accountReportSettingsSummary');if(accountReportSummary)accountReportSummary.textContent=summaryText;
+  if(!el&&!accountReportSummary)return;
+
 }
 function imageFileToDataURL(file,maxSide=520){
   return new Promise((resolve,reject)=>{
@@ -958,7 +969,8 @@ function openReportSettings(){
       centerEnabled:q('#rsCenterEnabled',sheet).checked,centerRole:q('#rsCenterRole',sheet).value.trim(),centerName:q('#rsCenterName',sheet).value.trim(),
       leftEnabled:q('#rsLeftEnabled',sheet).checked,leftRole:q('#rsLeftRole',sheet).value.trim(),leftName:q('#rsLeftName',sheet).value.trim()
     };
-    saveReportPrefs();closeSheet();renderAccount();showToast('تم حفظ إعدادات التقارير.','');
+    state.reportSettingsConfigured=true;
+    saveReportPrefs();closeSheet();renderAccount();showToast('تم حفظ إعدادات التقارير ونقلها إلى الحساب.','');
   };
 }
 const sheetBox=overlay.querySelector('.sheet');
@@ -1277,7 +1289,7 @@ function showView(v){
 }
 qa('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
 qa('[data-go]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.go)));
-q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#academicCalendarBtn').addEventListener('click',openAcademicCalendarSettings);q('#accountAcademicCalendarBtn').addEventListener('click',openAcademicCalendarSettings);q('#reportSettingsBtn').addEventListener('click',openReportSettings);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
+q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#academicCalendarBtn').addEventListener('click',openAcademicCalendarSettings);q('#accountAcademicCalendarBtn').addEventListener('click',openAcademicCalendarSettings);q('#reportSettingsBtn').addEventListener('click',openReportSettings);q('#accountReportSettingsBtn').addEventListener('click',openReportSettings);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
 
 const headerBack=q('#headerBack');
 let backDrag=null,backLongPressTimer=null,suppressBackClick=false;
@@ -2559,7 +2571,7 @@ function reportBody(studentId,type){
     return '<table class="table"><tr><th>الاختبار</th><th>الدرجة</th><th>النسبة</th></tr>'+r.tests.map(e=>'<tr><td>'+(e.label||'اختبار')+'</td><td>'+e.value+'/'+e.max+'</td><td>'+Math.round(Number(e.value)/Number(e.max)*100)+'%</td></tr>').join('')+'</table><div class="mt12">'+renderMetric('متوسط الاختبارات',r.testPct,'')+'</div>';
   }
   if(type==='analysis'){
-    const metrics=[{name:'الحضور',pct:r.attendancePct},{name:'الاختبارات',pct:r.testPct},...r.itemRows];
+    const metrics=[{name:'الحضور',pct:r.attendancePct},...(r.tests.length?[{name:'الاختبارات',pct:r.testPct}]:[]),...r.itemRows];
     const sorted=metrics.slice().sort((a,b)=>Number(b.pct)-Number(a.pct));
     const best=sorted[0], low=sorted.at(-1);
     const overall=Math.round(metrics.reduce((a,x)=>a+Number(x.pct||0),0)/Math.max(1,metrics.length));
@@ -2577,7 +2589,7 @@ function reportBody(studentId,type){
       +'<div class="section-title mt16">تفصيل الأداء</div>'
       +metrics.map(x=>renderMetric(x.name,x.pct,x.value!=null&&x.max!=null?x.value+'/'+x.max:'')).join('');
   }
-  const summary='<div class="grid2"><div class="panel"><div class="small">مؤشر الأداء</div><div class="h2">'+r.performance+'/100</div></div><div class="panel"><div class="small">الحضور</div><div class="h2">'+r.attendancePct+'%</div></div><div class="panel"><div class="small">متوسط الاختبارات</div><div class="h2">'+r.testPct+'%</div></div><div class="panel"><div class="small">المتابعات</div><div class="h2">'+r.followResolved+'/'+r.follow+'</div><div class="small">منجزة · '+r.followOpen+' مفتوحة</div></div></div>';
+  const summary='<div class="grid2"><div class="panel"><div class="small">مؤشر الأداء</div><div class="h2">'+r.performance+'/100</div></div><div class="panel"><div class="small">الحضور</div><div class="h2">'+r.attendancePct+'%</div></div><div class="panel"><div class="small">متوسط الاختبارات</div><div class="h2">'+(r.tests.length?r.testPct+'%':'—')+'</div></div><div class="panel"><div class="small">المتابعات</div><div class="h2">'+r.followResolved+'/'+r.follow+'</div><div class="small">منجزة · '+r.followOpen+' مفتوحة</div></div></div>';
   const items='<div class="section-title mt16">التقييمات</div><div class="panel">'+(r.itemRows.length?r.itemRows.map(x=>'<div class="row between" style="padding:5px 0"><span>'+x.name+'</span><strong>'+x.value+'/'+x.max+'</strong></div>').join(''):'<div class="small">لا توجد تقييمات بعد.</div>')+'</div>';
   if(type==='summary')return summary+'<div class="section-title mt16">المحاور</div>'+r.metrics.slice(0,4).map(x=>renderMetric(x.name,x.pct,'')).join('');
   const followRows=followHistory(studentId);
@@ -2648,16 +2660,24 @@ function openPrintWindow(title,studentName,c,body,sig,evidence,opts={}){
   const safeSide=s=>['right','center','left'].includes(s)?s:'right';
   const addZone=(side,html)=>zones[safeSide(side)].push(html);
   const logo=(src,label)=>'<div class="official-logo"><img src="'+src+'" alt="'+label+'"></div>';
+  let leftHasImageLogo=false;
   if(branding.showMinistry){
-    addZone(branding.ministrySide||'center',branding.ministryLogo?logo(branding.ministryLogo,'شعار وزارة التعليم'):'<div class="ministry-fallback"><strong>وزارة التعليم</strong><span>Ministry of Education</span></div>');
+    const side=branding.ministrySide||'center';
+    addZone(side,branding.ministryLogo?logo(branding.ministryLogo,'شعار وزارة التعليم'):'<div class="ministry-fallback"><strong>وزارة التعليم</strong><span>Ministry of Education</span></div>');
+    if(side==='left'&&branding.ministryLogo)leftHasImageLogo=true;
   }
-  if(branding.showSchoolLogo&&branding.schoolLogo)addZone(branding.schoolSide||'right',logo(branding.schoolLogo,'شعار المدرسة'));
+  if(branding.showSchoolLogo&&branding.schoolLogo){
+    const side=branding.schoolSide||'right';addZone(side,logo(branding.schoolLogo,'شعار المدرسة'));
+    if(side==='left')leftHasImageLogo=true;
+  }
   const officialText=value=>'<div class="official-text"><strong>'+esc(value)+'</strong></div>';
   if(branding.showCountry&&branding.country)addZone(branding.countrySide||'right',officialText(branding.country));
   if(branding.showEducationAdmin&&branding.educationAdmin)addZone(branding.educationAdminSide||'right',officialText(branding.educationAdmin));
   if(branding.showSchoolName&&branding.schoolName)addZone(branding.schoolNameSide||'right',officialText(branding.schoolName));
   const today=todayIsoRiyadh();
-  zones.left.push('<div class="report-meta"><strong>'+esc(dayNames[weekdayForIso(today)])+'</strong><span>'+esc(gregDateText(today,false))+'</span><span>'+esc(hijriDateText(today))+'</span>'+(branding.showOutgoing!==false?'<span>الصادر: '+esc(branding.outgoingNo||'—')+'</span>':'')+'</div>');
+  if(!leftHasImageLogo){
+    zones.left.push('<div class="report-meta"><strong>'+esc(dayNames[weekdayForIso(today)])+'</strong><span>'+esc(gregDateText(today,false))+'</span><span>'+esc(hijriDateText(today))+'</span>'+(branding.showOutgoing!==false?'<span>الصادر: '+esc(branding.outgoingNo||'—')+'</span>':'')+'</div>');
+  }
   const zone=(side)=>'<div class="official-zone '+side+'">'+(zones[side].length?zones[side].join(''):'<span class="official-empty"></span>')+'</div>';
   const sigs=[];
   if(sig?.rightEnabled)sigs.push({name:sig.rightName,role:sig.rightRole||'المعلم'});
@@ -2681,21 +2701,21 @@ function openPrintWindow(title,studentName,c,body,sig,evidence,opts={}){
     +'<title>'+esc(title)+(studentName?' - '+esc(studentName):'')+'</title>'
     +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
     +'<link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">'
-    +'<style>@page{size:A4;margin:8mm}*{box-sizing:border-box}body{margin:0;background:#eaf1ef;color:#183839;font-family:"Almarai","Cairo",Tahoma,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'<style>@page{size:A4;margin:9mm 9mm 14mm}*{box-sizing:border-box}body{margin:0;background:#eaf1ef;color:#183839;font-family:"Almarai","Cairo",Tahoma,sans-serif;font-size:13.5px;line-height:1.8;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'.preview-tools{position:sticky;top:0;z-index:20;display:flex;justify-content:center;gap:8px;padding:10px;background:rgba(234,241,239,.96);border-bottom:1px solid #d8e4e1}.preview-tools button{font-family:"IBM Plex Sans Arabic";font-weight:800;font-size:12px;border-radius:10px;padding:9px 16px}.print{border:0;background:#0f4f4d;color:#fff}.close{border:1px solid #cadbd7;background:#fff;color:#0f4f4d}'
     +'.page{width:210mm;min-height:297mm;margin:14px auto 28px;background:#fff;padding:9mm 10mm 10mm;box-shadow:0 16px 45px rgba(15,79,77,.12)}.topline{height:4px;border-radius:99px;background:linear-gradient(90deg,#0f4f4d 0 73%,#8f6b52 73%)}'
-    +'.official-head{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:14px;padding:14px 2px 13px;border-bottom:1px solid #dbe7e4;min-height:96px}.official-zone{min-width:0;display:flex;flex-direction:column;gap:5px;align-items:flex-start;justify-content:center}.official-zone.right{text-align:right;align-items:flex-start}.official-zone.center{text-align:center;align-items:center}.official-zone.left{text-align:left;align-items:flex-end}.official-logo{width:72px;height:66px;display:grid;place-items:center}.official-logo img{max-width:100%;max-height:64px;object-fit:contain}.ministry-fallback{text-align:center;line-height:1.35}.ministry-fallback strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:17px;color:#183839}.ministry-fallback span{display:block;font-size:8.5px;color:#718687;margin-top:2px}.official-text strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:13.5px;line-height:1.65;color:#183839}.report-meta{display:flex;flex-direction:column;gap:2px;font-family:"Cairo";font-size:11.8px;line-height:1.65;color:#536b6c}.report-meta strong{font-family:"IBM Plex Sans Arabic";font-size:13px;color:#183839}.official-empty{min-height:1px}'
-    +'.report-title{margin-top:13px;padding:12px 14px;border-radius:11px;background:#f1f7f5;border-right:4px solid #0f4f4d;display:flex;justify-content:space-between;gap:12px;align-items:center}.report-title h1{margin:0;font-family:"IBM Plex Sans Arabic";font-size:21px;color:#0f4f4d;line-height:1.5}.report-title span{font-family:"Cairo";font-size:11.8px;color:#718687;font-weight:700}'
-    +'.student-strip{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:1px;margin-top:9px;background:#dce7e5;border:1px solid #dce7e5;border-radius:9px;overflow:hidden}.student-strip>div{background:#fff;padding:8px 9px}.student-strip small{display:block;font-family:"Cairo";font-size:10.8px;color:#7b8d8e;font-weight:700}.student-strip strong{display:block;font-family:"Almarai","Cairo";font-size:13.8px;margin-top:4px;line-height:1.6}'
-    +'.section{margin-top:13px}.section-title,.section-kicker{font-family:"IBM Plex Sans Arabic";font-size:15px;font-weight:800;color:#0f4f4d;margin:0 0 8px;line-height:1.6}.grid2,.report-two-col{display:grid;grid-template-columns:1fr 1fr;gap:9px}.report-full{grid-column:1/-1}.panel{border:1px solid #dce7e5;border-radius:10px;padding:11px 12px;background:#fbfdfc;break-inside:avoid;font-family:"Almarai","Cairo";font-size:12.8px;line-height:1.9}.small{font-family:"Cairo";font-size:11.6px;color:#718687;line-height:1.8}.h2{font-family:"IBM Plex Sans Arabic";font-size:18px}.row{display:flex;align-items:center;gap:8px}.between{justify-content:space-between}.mt8{margin-top:6px}.mt12{margin-top:8px}.mt16{margin-top:10px}.badge{font-size:10px;background:#eaf4f2;color:#0f4f4d;border-radius:999px;padding:3px 6px}.notice{border:1px solid #eadcb8;background:#fffaf0;padding:9px 10px;border-radius:9px;font-size:11px;line-height:1.65}'
+    +'.official-head{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:16px;padding:14px 4px 14px;border-bottom:1px solid #dbe7e4;min-height:92px}.official-zone{min-width:0;display:flex;flex-direction:column;gap:5px;align-items:flex-start;justify-content:center}.official-zone.right{text-align:right;align-items:flex-start}.official-zone.center{text-align:center;align-items:center}.official-zone.left{text-align:left;align-items:flex-end}.official-logo{width:72px;height:66px;display:grid;place-items:center}.official-logo img{max-width:100%;max-height:64px;object-fit:contain}.ministry-fallback{text-align:center;line-height:1.35}.ministry-fallback strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:17px;color:#183839}.ministry-fallback span{display:block;font-size:8.5px;color:#718687;margin-top:2px}.official-text strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:14.5px;line-height:1.75;color:#183839}.report-meta{display:flex;flex-direction:column;gap:2px;font-family:"Cairo";font-size:12.6px;line-height:1.75;color:#536b6c}.report-meta strong{font-family:"IBM Plex Sans Arabic";font-size:14px;color:#183839}.official-empty{min-height:1px}'
+    +'.report-title{margin-top:14px;padding:13px 15px;border-radius:12px;background:linear-gradient(135deg,#edf6f3,#fbf7f2);border-right:5px solid #0f4f4d;display:flex;justify-content:space-between;gap:14px;align-items:center}.report-title h1{margin:0;font-family:"IBM Plex Sans Arabic";font-size:22.5px;color:#0f4f4d;line-height:1.55}.report-title span{font-family:"Cairo";font-size:12.6px;color:#667c7d;font-weight:700}'
+    +'.student-strip{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:1px;margin-top:9px;background:#dce7e5;border:1px solid #dce7e5;border-radius:9px;overflow:hidden}.student-strip>div{background:#fff;padding:8px 9px}.student-strip small{display:block;font-family:"Cairo";font-size:11.6px;color:#728788;font-weight:700}.student-strip strong{display:block;font-family:"Almarai","Cairo";font-size:14.8px;margin-top:4px;line-height:1.65;color:#183839}'
+    +'.section{margin-top:14px}.section-title,.section-kicker{font-family:"IBM Plex Sans Arabic";font-size:16.2px;font-weight:800;color:#0f4f4d;margin:0 0 9px;line-height:1.7}.grid2,.report-two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}.report-full{grid-column:1/-1}.panel{border:1px solid #d8e6e3;border-radius:11px;padding:12px 13px;background:#fbfdfc;break-inside:avoid;font-family:"Almarai","Cairo";font-size:13.6px;line-height:2}.small{font-family:"Cairo";font-size:12.3px;color:#687f80;line-height:1.9}.h2{font-family:"IBM Plex Sans Arabic";font-size:19px}.row{display:flex;align-items:center;gap:8px}.between{justify-content:space-between}.mt8{margin-top:6px}.mt12{margin-top:8px}.mt16{margin-top:10px}.badge{font-family:"Cairo";font-size:11.2px;background:#eaf4f2;color:#0f4f4d;border-radius:999px;padding:4px 7px}.notice{border:1px solid #eadcb8;background:#fffaf0;padding:10px 11px;border-radius:10px;font-size:12.4px;line-height:1.85}'
     +'.report-metric{padding:6px 0;border-bottom:1px solid #edf2f1}.report-bar{height:6px;border-radius:99px;background:#edf3f2;overflow:hidden}.report-bar span{display:block;height:100%;background:linear-gradient(90deg,#176d68,#8c6a50);width:var(--w)}'
-    +'.analysis-overview{display:grid;grid-template-columns:90px 1fr;gap:9px;align-items:center}.analysis-ring{--p:0;width:84px;height:84px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at center,#fff 55%,transparent 56%),conic-gradient(#0f4f4d calc(var(--p)*1%),#e7efed 0)}.analysis-ring span{font-size:16px;font-weight:800;color:#0f4f4d}.analysis-ring small{font-size:7px;color:#718687}.analysis-highlights{display:flex;flex-direction:column;gap:5px}.analysis-note{border:1px solid #dbe7e4;border-radius:8px;padding:5px 7px}.analysis-note.good{background:#eef8f3}.analysis-note.warn{background:#fff8e8}.analysis-note small,.analysis-note span{display:block;font-size:7.7px}.analysis-note strong{display:block;font-size:9px}'
-    +'.analysis-bars{display:grid;gap:5px}.analysis-bar-row{display:grid;grid-template-columns:68px 1fr 32px;gap:6px;align-items:center}.analysis-bar-row strong{font-size:8.5px}.analysis-bar-track{height:6px;background:#edf3f2;border-radius:99px;overflow:hidden}.analysis-bar-fill{height:100%;background:linear-gradient(90deg,#0f4f4d,#8c6a50);width:var(--w)}.analysis-bar-row span{font-size:7.7px;color:#718687}.analysis-spark{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;align-items:end;height:58px;padding:5px 4px 2px;border-bottom:1px solid #dbe7e4}.analysis-spark-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:2px}.analysis-spark-bar{width:18px;max-width:100%;min-height:4px;border-radius:4px 4px 2px 2px;background:#0f4f4d;height:var(--h)}.analysis-spark-col small{font-size:7px;color:#718687}'
-    +'table{width:100%;border-collapse:collapse;font-family:"Almarai","Cairo";font-size:12px}th,td{padding:8px;border-bottom:1px solid #e5ecea;text-align:right;line-height:1.55}th{background:#f2f7f6;font-weight:800}.evidence{margin-top:12px;break-inside:avoid}.evidence h3{font-family:"IBM Plex Sans Arabic";font-size:13px;color:#0f4f4d}.evgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.evgrid figure{margin:0;aspect-ratio:1/1;border:1px solid #dbe7e4;border-radius:7px;padding:3px;overflow:hidden}.evgrid img{width:100%;height:100%;object-fit:cover;border-radius:4px}'
-    +'.signatures{display:grid;gap:24px;margin-top:34px;break-inside:avoid}.cols-1{grid-template-columns:1fr;max-width:190px;margin-inline:auto}.cols-2{grid-template-columns:1fr 1fr}.cols-3{grid-template-columns:1fr 1fr 1fr}.sig{text-align:center;min-height:96px}.sig strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:12px}.sig span{display:block;font-size:11px;margin-top:5px}.sig-space{height:34px}.sig-line{width:72px;border-bottom:1px solid #869998;margin:0 auto}'
-    +'.rakkiz-footer{display:flex;justify-content:flex-start;align-items:center;margin-top:18px;padding-top:8px;border-top:1px solid #e4ecea}.rakkiz-footer div{text-align:right;line-height:1.3}.rakkiz-footer strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:11px;color:#0f4f4d}.rakkiz-footer span{display:block;font-size:8.5px;color:#8c6a50;font-weight:700}'
+    +'.analysis-overview{display:grid;grid-template-columns:108px 1fr;gap:12px;align-items:center}.analysis-ring{--p:0;width:100px;height:100px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at center,#fff 55%,transparent 56%),conic-gradient(#0f4f4d calc(var(--p)*1%),#e7efed 0)}.analysis-ring span{font-family:"IBM Plex Sans Arabic";font-size:20px;font-weight:800;color:#0f4f4d}.analysis-ring small{font-family:"Cairo";font-size:10px;color:#687f80}.analysis-highlights{display:flex;flex-direction:column;gap:8px}.analysis-note{border:1px solid #dbe7e4;border-radius:10px;padding:8px 10px}.analysis-note.good{background:#eef8f3}.analysis-note.warn{background:#fff8e8}.analysis-note small,.analysis-note span{display:block;font-size:10.8px;line-height:1.6}.analysis-note strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:12.8px;line-height:1.6;margin:1px 0}'
+    +'.analysis-bars{display:grid;gap:8px}.analysis-bar-row{display:grid;grid-template-columns:92px 1fr 42px;gap:8px;align-items:center}.analysis-bar-row strong{font-family:"Almarai","Cairo";font-size:11.4px;line-height:1.5}.analysis-bar-track{height:8px;background:#edf3f2;border-radius:99px;overflow:hidden}.analysis-bar-fill{height:100%;background:linear-gradient(90deg,#0f4f4d,#8c6a50);width:var(--w)}.analysis-bar-row span{font-family:"Cairo";font-size:10.8px;color:#687f80}.analysis-spark{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;align-items:end;height:78px;padding:8px 5px 4px;border-bottom:1px solid #dbe7e4}.analysis-spark-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px}.analysis-spark-bar{width:22px;max-width:100%;min-height:5px;border-radius:5px 5px 2px 2px;background:#0f4f4d;height:var(--h)}.analysis-spark-col small{font-size:9.5px;color:#687f80}'
+    +'table{width:100%;border-collapse:collapse;font-family:"Almarai","Cairo";font-size:12.9px}th,td{padding:8px;border-bottom:1px solid #e5ecea;text-align:right;line-height:1.55}th{background:#f2f7f6;font-weight:800}.evidence{margin-top:12px;break-inside:avoid}.evidence h3{font-family:"IBM Plex Sans Arabic";font-size:13px;color:#0f4f4d}.evgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.evgrid figure{margin:0;aspect-ratio:1/1;border:1px solid #dbe7e4;border-radius:7px;padding:3px;overflow:hidden}.evgrid img{width:100%;height:100%;object-fit:cover;border-radius:4px}'
+    +'.signatures{display:grid;gap:24px;margin-top:34px;break-inside:avoid}.cols-1{grid-template-columns:1fr;max-width:190px;margin-inline:auto}.cols-2{grid-template-columns:1fr 1fr}.cols-3{grid-template-columns:1fr 1fr 1fr}.sig{text-align:center;min-height:98px}.sig strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:13.8px}.sig span{display:block;font-family:"Almarai","Cairo";font-size:12.6px;margin-top:5px}.sig-space{height:34px}.sig-line{width:72px;border-bottom:1px solid #869998;margin:0 auto}'
+    +'.rakkiz-footer{display:flex;justify-content:flex-start;align-items:center;margin-top:18px;padding-top:8px;border-top:1px solid #e4ecea;break-inside:avoid}.rakkiz-footer div{text-align:right;line-height:1.3}.rakkiz-footer strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:11px;color:#0f4f4d}.rakkiz-footer span{display:block;font-size:8.5px;color:#8c6a50;font-weight:700}'
     +'@media screen and (max-width:900px){.page{width:calc(100vw - 12px);min-height:auto;margin:8px auto 20px;padding:14px 12px 20px}.official-head{grid-template-columns:1fr 1fr 1fr;gap:6px;min-height:82px}.official-logo{width:46px;height:48px}.official-logo img{max-height:46px}.ministry-fallback strong{font-size:13px}.official-text strong{font-size:10.5px}.report-meta{font-size:9.5px}.report-meta strong{font-size:10.5px}.report-title h1{font-size:18px}.report-title span{font-size:10px}.student-strip{grid-template-columns:1.6fr 1fr 1fr 1fr}.student-strip>div{padding:7px}.student-strip strong{font-size:11.8px}.student-strip small{font-size:9.2px}.grid2{grid-template-columns:1fr 1fr}.panel{font-size:11.5px}.small{font-size:10.5px}.sig-space{height:36px}.sig-line{width:66px}}'
-    +'@media print{.preview-tools{display:none!important}body{background:#fff}.page{width:auto;min-height:auto;margin:0;padding:0;box-shadow:none}.rakkiz-footer{margin-top:12px}}</style></head>'
+    +'@media print{.preview-tools{display:none!important}body{background:#fff}.page{width:auto;min-height:auto;margin:0;padding:0 0 8mm;box-shadow:none}.rakkiz-footer{position:fixed;right:0;bottom:0;margin:0;padding-top:4px;border-top:0;background:#fff;z-index:5}}</style></head>'
     +'<body><div class="preview-tools"><button class="print" onclick="window.print()">طباعة / حفظ PDF</button><button class="close" onclick="window.close()">إغلاق المعاينة</button></div>'
     +'<main class="page"><div class="topline"></div><header class="official-head">'+zone('right')+zone('center')+zone('left')+'</header>'
     +'<section class="report-title"><h1>'+esc(title)+'</h1><span>'+termName(academicTerms().current)+' · '+esc(dualDateText(today))+'</span></section>'
@@ -2921,9 +2941,11 @@ function smartPrintCommon(studentId,title,bodyBuilder){
   const name=q('#srName',sheet)?.value.trim()||'',grade=q('#srGrade',sheet)?.value.trim()||'',className=q('#srClass',sheet)?.value.trim()||'';
   if(!name){showToast('اكتب اسم الطالب أولًا.');return}
   const preparedBody=bodyBuilder();
+  const sourceStudent=studentId?state.students.find(x=>x.id===studentId):null;
+  const subject=sourceStudent?classSubject(sourceStudent.classId):'';
   openSignatureStep(studentId,'smart',action=>{
     if(action==='back'){closeSheet();showView('reports');return}
-    openPrintWindow(title,name,{grade,name:className,subject:''},preparedBody,state.reportSignatures,[]);
+    openPrintWindow(title,name,{grade,name:className,subject},preparedBody,state.reportSignatures,[]);
     closeSheet();
   });
 }
@@ -2941,7 +2963,7 @@ function openSmartProgressReport(studentId){
     if(!ctx)return;
     const best=ctx.r.itemRows.slice().sort((a,b)=>b.pct-a.pct).slice(0,2).map(x=>x.name+' '+x.pct+'%');
     const low=ctx.r.itemRows.filter(x=>x.pct<60).map(x=>x.name);
-    q('#spSummary',sheet).value='مؤشر الأداء '+(ctx.st.perf||0)+'/100، ونسبة الحضور '+ctx.r.attendancePct+'%، ومتوسط الاختبارات '+ctx.r.testPct+'%.';
+    q('#spSummary',sheet).value='مؤشر الأداء '+ctx.r.performance+'/100، ونسبة الحضور '+ctx.r.attendancePct+'%'+(ctx.r.tests.length?'، ومتوسط الاختبارات '+ctx.r.testPct+'%.':'، ولا توجد اختبارات مسجلة حتى الآن.');
     q('#spStrengths',sheet).value=smartTextList(best.concat(ctx.positives),'لا توجد نقاط قوة بارزة مسجلة بعد.');
     q('#spNeeds',sheet).value=smartTextList(low.concat(ctx.negatives,ctx.openFollow.map(e=>e.label)),'لا توجد جوانب حرجة مسجلة حاليًا.');
     q('#spRec',sheet).value=low.length||ctx.openFollow.length?'متابعة الجوانب المحددة بخطة قصيرة، ثم إعادة قياس ومقارنة التحسن.':'الاستمرار في التعزيز والمحافظة على مستوى الأداء الحالي.';
