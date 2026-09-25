@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.65</title>
+<title>ركّز — موقع تجريبي v0.66</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -177,6 +177,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 .student-card-name{font-family:"Almarai","Cairo",sans-serif;font-size:19px;font-weight:800;line-height:1.45}
 .student-card-meta{font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px}
 .student-card-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.student-attendance-block{margin-top:9px}.student-attendance-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.student-att-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:7px 4px;text-align:center;color:var(--ink);min-height:53px}.student-att-card strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:15px;line-height:1.15}.student-att-card span{display:block;font-size:9px;font-weight:800;margin-top:3px;white-space:nowrap}.student-att-card.present{background:#eef8f4;border-color:#c3e1d5;color:#176b55}.student-att-card.absent{background:#fff1ef;border-color:#efcbc5;color:#a54538}.student-att-card.excused{background:#fff7dc;border-color:#ecd891;color:#916b14}.student-att-card.late{background:#f0f2fb;border-color:#d8ddf1;color:#59649e}.student-attendance-insight{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:7px;margin-top:7px;padding:6px 8px;border:1px solid #e3ecea;border-radius:11px;background:#fbfdfc}.student-attendance-insight .attendance-pulse-track{min-width:0}.attendance-insight-label{font-size:9.5px;color:var(--muted);font-weight:800}.attendance-insight-chip{font-size:9.5px;font-weight:850;border-radius:999px;padding:3px 7px;background:#edf5f3;color:var(--green);white-space:nowrap}.attendance-log-row{padding:9px 2px;border-bottom:1px solid #edf2f1}.attendance-log-row:last-child{border-bottom:0}.attendance-log-row strong{display:block;font-size:12.5px}.attendance-log-row span{display:block;font-size:10.5px;color:var(--muted);line-height:1.65;margin-top:2px}
 .student-card-stat{border:1px solid var(--line);border-radius:12px;background:#fbfdfc;padding:7px 6px;text-align:center}
 .student-card-stat strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:15px;color:var(--green);line-height:1.2}
 .student-card-stat span{display:block;font-size:9.8px;color:var(--muted);font-weight:700;margin-top:2px}
@@ -1084,17 +1085,40 @@ q('#nextDay').addEventListener('click',()=>shiftDate(1));
 q('#todayBtn').addEventListener('click',()=>{state.date='2026-09-24';renderDate();renderStudents()});
 
 function currentStudents(){return state.students.filter(s=>s.classId===state.classId)}
-function attKey(sid){return state.date+'|'+state.classId+'|'+sid}
-function getAtt(sid){return state.attendance[attKey(sid)]||'present'}
-function ensureAttendanceDay(){currentStudents().forEach(st=>{const k=attKey(st.id);if(!(k in state.attendance))state.attendance[k]='present'})}
+function attendanceSubject(){return classSubject(state.classId)}
+function attKey(sid){return state.date+'|'+attendanceSubject()+'|'+state.classId+'|'+sid}
+function legacyAttKey(sid){return state.date+'|'+state.classId+'|'+sid}
+function parseAttendanceKey(key){
+  const p=key.split('|');
+  if(p.length>=4)return {date:p[0],subject:p[1],classId:p[2],studentId:p[3]};
+  return {date:p[0],subject:null,classId:p[1],studentId:p[2]};
+}
+function getAtt(sid){return state.attendance[attKey(sid)]??state.attendance[legacyAttKey(sid)]??'present'}
+function ensureAttendanceDay(){currentStudents().forEach(st=>{const k=attKey(st.id);if(!(k in state.attendance)&&!(legacyAttKey(st.id) in state.attendance))state.attendance[k]='present'})}
+function weekdayForIso(iso){return dateParts(iso).getUTCDay()}
+function attendanceLessonFor(date,classId,subject){
+  const day=weekdayForIso(date);
+  const matches=state.schedule.filter(l=>l.day===day&&l.classId===classId&&(!subject||l.subject===subject)).sort((a,b)=>minutesOf(a.start)-minutesOf(b.start));
+  if(!matches.length)return null;
+  if(date===state.date){
+    const now=new Date(),cur=now.getHours()*60+now.getMinutes();
+    return matches.find(l=>cur>=minutesOf(l.start)&&cur<minutesOf(l.end))||matches[0];
+  }
+  return matches[0];
+}
+function attendanceLessonMeta(date,classId,subject){
+  const l=attendanceLessonFor(date,classId,subject);
+  return l?{lessonId:l.id,period:l.period,start:l.start,end:l.end,subject:l.subject||subject}:{lessonId:null,period:null,start:'',end:'',subject:subject||classSubject(classId)};
+}
 function setAtt(sid,val){
+  const subject=attendanceSubject(),meta=attendanceLessonMeta(state.date,state.classId,subject);
   state.attendance[attKey(sid)]=val;
-  const key='attendance|'+state.date+'|'+state.classId+'|'+sid;
-  let ev=state.events.find(e=>e.eventKey===key);
+  const key='attendance|'+state.date+'|'+subject+'|'+state.classId+'|'+sid;
+  let ev=state.events.find(e=>e.eventKey===key)||state.events.find(e=>e.eventKey==='attendance|'+state.date+'|'+state.classId+'|'+sid);
   if(ev){
-    ev.label=attLabels[val];ev.value=0;ev.follow=false;ev.resolved=true;ev.updatedAt=new Date().toISOString();
+    ev.eventKey=key;ev.label=attLabels[val];ev.value=0;ev.follow=false;ev.resolved=true;ev.classId=state.classId;ev.subject=subject;ev.period=meta.period;ev.lessonId=meta.lessonId;ev.start=meta.start;ev.end=meta.end;ev.updatedAt=new Date().toISOString();
   }else{
-    state.events.push({id:'e'+Date.now()+Math.random(),eventKey:key,studentId:sid,date:state.date,module:'attendance',label:attLabels[val],value:0,follow:false,resolved:true,createdAt:new Date().toISOString()});
+    state.events.push({id:'e'+Date.now()+Math.random(),eventKey:key,studentId:sid,date:state.date,module:'attendance',label:attLabels[val],value:0,classId:state.classId,subject,period:meta.period,lessonId:meta.lessonId,start:meta.start,end:meta.end,follow:false,resolved:true,createdAt:new Date().toISOString()});
   }
   renderStudents();
 }
@@ -1703,12 +1727,59 @@ function bindParticipationLongPress(box){
     name.addEventListener('contextmenu',e=>e.preventDefault());
   });
 }
-function attendanceHistoryFor(studentId,limit=7){
+function attendanceHistoryFor(studentId,limit=7,classId=state.classId,subject=classSubject(classId)){
   const rows=Object.entries(state.attendance)
-    .map(([key,status])=>{const parts=key.split('|');return {date:parts[0],classId:parts[1],studentId:parts[2],status}})
-    .filter(x=>x.studentId===studentId&&x.classId===state.classId)
+    .map(([key,status])=>({...parseAttendanceKey(key),status}))
+    .filter(x=>x.studentId===studentId&&x.classId===classId&&(!x.subject||x.subject===subject))
     .sort((a,b)=>a.date.localeCompare(b.date));
-  return rows.slice(-limit);
+  const dedup=new Map();
+  rows.forEach(x=>dedup.set(x.date+'|'+(x.subject||subject)+'|'+x.classId,x));
+  const out=[...dedup.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  return Number.isFinite(limit)?out.slice(-limit):out;
+}
+function attendanceCountsFor(studentId,classId=state.classId,subject=classSubject(classId)){
+  const counts={present:0,absent:0,late:0,excused:0};
+  attendanceHistoryFor(studentId,Infinity,classId,subject).forEach(x=>{if(x.status in counts)counts[x.status]++});
+  return counts;
+}
+function attendanceInsightFor(studentId,classId=state.classId,subject=classSubject(classId)){
+  const hist=attendanceHistoryFor(studentId,8,classId,subject);
+  if(hist.length<3)return 'سجل جديد';
+  const bad=x=>x.status==='absent'||x.status==='late';
+  const recent=hist.slice(-4),older=hist.slice(0,-4).slice(-4);
+  const recentBad=recent.filter(bad).length,olderBad=older.filter(bad).length;
+  const totalBad=hist.filter(bad).length;
+  if(older.length>=2&&recentBad<olderBad)return 'تحسن مؤخرًا';
+  if(totalBad===0&&hist.filter(x=>x.status==='excused').length<=1)return 'منتظم';
+  if(recentBad>=2||totalBad>=Math.ceil(hist.length*.35))return 'يحتاج متابعة';
+  return 'متذبذب';
+}
+function attendancePulseOnlyHtml(studentId,classId=state.classId,subject=classSubject(classId),limit=7){
+  const hist=attendanceHistoryFor(studentId,limit,classId,subject);
+  const padded=Array(Math.max(0,limit-hist.length)).fill(null).concat(hist);
+  return '<span class="attendance-pulse-track">'+padded.map(x=>'<span class="attendance-pulse-seg '+(x?.status||'')+'" title="'+(x?dualDateText(x.date)+' — '+attLabels[x.status]:'لا يوجد سجل')+'"></span>').join('')+'</span>';
+}
+function attendanceStatusFromEventOrHistory(studentId,date,classId,subject){
+  const row=attendanceHistoryFor(studentId,Infinity,classId,subject).find(x=>x.date===date);
+  return row?.status||null;
+}
+function attendanceRecordDetails(studentId,status,classId,subject){
+  return attendanceHistoryFor(studentId,Infinity,classId,subject)
+    .filter(x=>!status||x.status===status)
+    .slice().reverse().map(row=>{
+      const ev=state.events.find(e=>e.studentId===studentId&&e.module==='attendance'&&e.date===row.date&&(e.classId===classId||!e.classId)&&(!e.subject||e.subject===subject));
+      const meta=ev?.period?{period:ev.period,start:ev.start,end:ev.end,subject:ev.subject||subject}:attendanceLessonMeta(row.date,classId,subject);
+      return {...row,period:meta.period,start:meta.start,end:meta.end,subject:meta.subject||subject};
+    });
+}
+function openAttendanceHistory(studentId,status){
+  const st=state.students.find(x=>x.id===studentId);if(!st)return;
+  const cls=state.classes.find(x=>x.id===st.classId),subject=classSubject(st.classId);
+  const rows=attendanceRecordDetails(studentId,status,st.classId,subject);
+  const title=status?attLabels[status]:'سجل الحضور';
+  openSheet('<div class="row between"><div><div class="h2">'+title+' — '+htmlEsc(st.name)+'</div><div class="small">'+htmlEsc(subject)+' · '+htmlEsc(cls?.grade||'')+' — '+htmlEsc(cls?.name||'')+'</div></div><button class="iconbtn" id="attHistoryClose">×</button></div>'
+    +(rows.length?'<div class="panel mt16">'+rows.map(r=>'<div class="attendance-log-row"><strong>'+dayNames[weekdayForIso(r.date)]+' · '+dualDateText(r.date)+'</strong><span>'+(r.period?periodLabel(r.period):'الحصة غير محددة')+(r.start&&r.end?' · '+r.start+'–'+r.end:'')+' · '+htmlEsc(r.subject||subject)+'</span></div>').join('')+'</div>':'<div class="notice mt16">لا يوجد سجل لهذه الحالة.</div>'));
+  q('#attHistoryClose',sheet).onclick=()=>openStudentCard(studentId);
 }
 function attendancePulseHtml(studentId){
   const hist=attendanceHistoryFor(studentId,7);
@@ -1851,25 +1922,34 @@ function renderFollowup(){
 
 function openStudentCard(id){
   const st=state.students.find(x=>x.id===id); if(!st)return;
+  const cls=state.classes.find(c=>c.id===st.classId),subject=classSubject(st.classId);
   const ev=state.events.filter(e=>e.studentId===id).slice(-8).reverse();
   const alerts=state.events.filter(e=>e.studentId===id&&e.follow&&!e.resolved).slice().reverse();
-  const evalRows=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat(state.items.custom||[]);
+  const evalRows=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat((state.items.custom||[]).filter(x=>x.usage!=='cards'));
+  const att=attendanceCountsFor(id,st.classId,subject),insight=attendanceInsightFor(id,st.classId,subject);
   openCompactSheet(
-    '<div class="student-card-head"><div><div class="student-card-name">'+st.name+'</div><div class="student-card-meta">الكود '+(st.code||'بدون كود')+' · '+(state.classes.find(c=>c.id===st.classId)?.grade||'')+' · '+(state.classes.find(c=>c.id===st.classId)?.name||'')+'</div></div><button class="iconbtn" id="xclose">×</button></div>'
+    '<div class="student-card-head"><div><div class="student-card-name">'+st.name+'</div><div class="student-card-meta">الكود '+(st.code||'بدون كود')+' · '+(cls?.grade||'')+' · '+(cls?.name||'')+' · '+subject+'</div></div><button class="iconbtn" id="xclose">×</button></div>'
     +'<div class="student-card-stats"><div class="student-card-stat"><strong>'+(st.perf||0)+'</strong><span>الأداء</span></div><div class="student-card-stat"><strong>'+followCount(id)+'</strong><span>متابعة</span></div><div class="student-card-stat"><strong>'+noteCount(id)+'</strong><span>ملاحظات</span></div></div>'
+    +'<div class="student-attendance-block"><div class="student-attendance-grid">'
+      +'<button class="student-att-card present" data-att-history="present"><strong>'+att.present+'</strong><span>حاضر</span></button>'
+      +'<button class="student-att-card absent" data-att-history="absent"><strong>'+att.absent+'</strong><span>غائب</span></button>'
+      +'<button class="student-att-card excused" data-att-history="excused"><strong>'+att.excused+'</strong><span>مستأذن</span></button>'
+      +'<button class="student-att-card late" data-att-history="late"><strong>'+att.late+'</strong><span>متأخر</span></button>'
+    +'</div><div class="student-attendance-insight"><span class="attendance-insight-label">نبض الحضور</span>'+attendancePulseOnlyHtml(id,st.classId,subject,7)+'<span class="attendance-insight-chip">'+insight+'</span></div></div>'
     +(alerts.length?'<div class="student-card-alert">⚠ لدى الطالب '+alerts.length+' متابعة مفتوحة — افتح قسم المتابعات بالأسفل.</div>':'')
     +'<div class="student-card-actions"><button class="btn primary" id="cardReports">تقارير الطالب</button><button class="btn soft" id="cardNote">+ ملاحظة</button></div>'
-    +'<details class="student-accordion" '+(alerts.length?'':'')+'><summary><span>المتابعات المفتوحة</span><span class="badge '+(alerts.length?'warn':'')+'">'+alerts.length+'</span></summary><div class="student-accordion-body">'
-      +(alerts.length?alerts.map(e=>'<div class="student-mini-row"><div><strong>'+(e.label||e.module)+'</strong><div class="small">'+e.date+' · '+(e.value>0?'+':'')+(e.value??'')+'</div></div><button class="btn soft" style="min-height:32px;padding-inline:8px;font-size:10.5px" data-resolve="'+e.id+'">تمت</button></div>').join(''):'<div class="small" style="text-align:center;padding:6px">لا توجد متابعة مفتوحة.</div>')
+    +'<details class="student-accordion"><summary><span>المتابعات المفتوحة</span><span class="badge '+(alerts.length?'warn':'')+'">'+alerts.length+'</span></summary><div class="student-accordion-body">'
+      +(alerts.length?alerts.map(e=>'<div class="student-mini-row"><div><strong>'+(e.label||e.module)+'</strong><div class="small">'+dualDateText(e.date||state.date)+'</div></div><button class="btn soft" style="min-height:32px;padding-inline:8px;font-size:10.5px" data-resolve="'+e.id+'">تمت</button></div>').join(''):'<div class="small" style="text-align:center;padding:6px">لا توجد متابعة مفتوحة.</div>')
       +'</div></details>'
     +'<details class="student-accordion"><summary><span>مجموع التقييمات</span><span class="small">عرض</span></summary><div class="student-accordion-body">'
       +(evalRows.length?evalRows.map(m=>'<div class="student-mini-row"><span>'+m.name+'</span><strong>'+scoreFor(id,m)+'/'+m.max+'</strong></div>').join(''):'<div class="small">لا توجد تقييمات بعد.</div>')
       +'</div></details>'
     +'<details class="student-accordion"><summary><span>آخر الأحداث</span><span class="small">'+ev.length+'</span></summary><div class="student-accordion-body">'
-      +(ev.length?ev.map(e=>'<div class="student-event-row"><strong>'+(e.label||e.module)+'</strong><div class="small">'+(e.date||'')+' · '+(e.value>0?'+':'')+(e.value??'')+' '+(e.follow?(e.resolved?'· تمت المتابعة':'· يحتاج متابعة'):'')+'</div></div>').join(''):'<div class="small">لا توجد أحداث بعد.</div>')
+      +(ev.length?ev.map(e=>'<div class="student-event-row"><strong>'+(e.label||e.module)+'</strong><div class="small">'+(e.date?dualDateText(e.date):'')+' '+(e.follow?(e.resolved?'· تمت المتابعة':'· يحتاج متابعة'):'')+'</div></div>').join(''):'<div class="small">لا توجد أحداث بعد.</div>')
       +'</div></details>'
   );
   q('#xclose',sheet).onclick=closeSheet;
+  qa('[data-att-history]',sheet).forEach(btn=>btn.onclick=()=>openAttendanceHistory(id,btn.dataset.attHistory));
   qa('[data-resolve]',sheet).forEach(btn=>btn.onclick=()=>{
     const e=state.events.find(x=>x.id===btn.dataset.resolve);
     if(e)e.resolved=true;
@@ -1881,9 +1961,9 @@ function openStudentCard(id){
 }
 function reportStats(studentId){
   const st=state.students.find(x=>x.id===studentId);
-  const rows=Object.entries(state.attendance).filter(([k])=>k.split('|')[2]===studentId);
-  const counts={present:0,absent:0,late:0,excused:0};
-  rows.forEach(([,v])=>{if(v in counts)counts[v]++});
+  const classId=st?.classId, subject=classId?classSubject(classId):'';
+  const counts=attendanceCountsFor(studentId,classId,subject);
+  const rows=attendanceHistoryFor(studentId,Infinity,classId,subject);
   const totalAtt=Object.values(counts).reduce((a,b)=>a+b,0);
   const attendancePct=totalAtt?Math.round(((counts.present+counts.excused)/totalAtt)*100):100;
   const tests=state.events.filter(e=>e.studentId===studentId&&e.module==='tests'&&Number(e.max)>0);
