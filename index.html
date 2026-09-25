@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.48</title>
+<title>ركّز — موقع تجريبي v0.49</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -24,7 +24,7 @@ button{cursor:pointer}
 .header{padding:16px 16px 10px;position:sticky;top:0;z-index:8;background:rgba(247,251,250,.96);backdrop-filter:blur(12px);border-bottom:1px solid rgba(221,233,231,.7)}
 .brandrow{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .brand{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-weight:800;font-size:28px;letter-spacing:-.6px;color:var(--green)}
-.brand-lockup{display:flex;align-items:center;gap:9px;min-width:0}.brand-logo{display:block;width:104px;height:54px;object-fit:contain}.brand-side{min-width:0}.brand-side strong{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:12.5px;font-weight:800;color:var(--green);display:block}.brand-side span{font-family:"Cairo",Tahoma,sans-serif;font-size:11px;font-weight:700;color:var(--muted);display:block;margin-top:1px}.brown{background:var(--brownbg);color:var(--brown);border:1px solid #e4d3c5}.schedule-list{display:flex;flex-direction:column;gap:8px}.schedule-row{border:1px solid var(--line);border-radius:14px;padding:11px 12px;background:#fff}.timepill{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:12px;font-weight:800;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:5px 8px;white-space:nowrap}
+.brand-lockup{display:flex;align-items:center;gap:9px;min-width:0}.brand-logo{display:block;width:104px;height:54px;object-fit:contain}.brand-side{min-width:0}.brand-side strong{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:12.5px;font-weight:800;color:var(--green);display:block}.brand-side span{font-family:"Cairo",Tahoma,sans-serif;font-size:11px;font-weight:700;color:var(--muted);display:block;margin-top:1px}.brown{background:var(--brownbg);color:var(--brown);border:1px solid #e4d3c5}.schedule-list{display:flex;flex-direction:column;gap:8px}.schedule-subject-group{display:flex;flex-direction:column;gap:8px;padding:9px;border:1px solid #d9e7e4;border-radius:16px;background:#fbfdfc}.schedule-subject-title{display:flex;align-items:center;justify-content:space-between;padding:2px 3px}.schedule-subject-title strong{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;color:var(--green);font-size:15px}.schedule-subject-title span{font-size:11px;color:var(--muted);font-weight:800}.schedule-row{border:1px solid var(--line);border-radius:14px;padding:11px 12px;background:#fff}.timepill{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:12px;font-weight:800;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:5px 8px;white-space:nowrap}
 .lesson-hero-top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:10px;direction:rtl}
 .lesson-hero-status{min-width:0;font-size:12.5px;font-weight:800;line-height:1.65;opacity:.86;white-space:normal;overflow-wrap:anywhere}
 .lesson-hero-top .timepill{justify-self:end;align-self:start;flex:0 0 auto;font-size:11.5px;padding:4px 7px}
@@ -478,6 +478,12 @@ const state={
     {id:'c3',grade:'ثاني متوسط',name:'2/أ',subject:'العلوم'},
     {id:'c4',grade:'أول متوسط',name:'1/ب',subject:'الرياضيات'}
   ],
+  assignments:[
+    {id:'a1',subject:'العلوم',classId:'c1',source:'noor'},
+    {id:'a2',subject:'العلوم',classId:'c2',source:'noor'},
+    {id:'a3',subject:'العلوم',classId:'c3',source:'noor'},
+    {id:'a4',subject:'الرياضيات',classId:'c4',source:'noor'}
+  ],
   schedule:[
     {id:'l1',day:4,period:1,start:'08:00',end:'08:45',classId:'c1',subject:'العلوم'},
     {id:'l2',day:4,period:2,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'},
@@ -764,32 +770,79 @@ function maybeNotifyLesson(){
   const now=new Date(), day=now.getDay(), cur=now.getHours()*60+now.getMinutes(), dateKey=now.toISOString().slice(0,10);window.__rakkizNotified=window.__rakkizNotified||{};
   state.schedule.filter(x=>x.day===day).forEach(l=>{const start=minutesOf(l.start),diff=start-cur,before=Number(state.scheduleSettings.before)||0;const inWindow=before===0?(diff<=0&&diff>-1):(diff>=0&&diff<=before);const key=`${dateKey}|${l.id}|${before}`;if(inWindow&&!window.__rakkizNotified[key]){window.__rakkizNotified[key]=1;new Notification('ركّز — تذكير الحصة',{body:`${lessonClassLabel(l)} · ${l.subject} · ${l.start}`})}})
 }
+function scheduleRowsBySubject(){
+  const groups=new Map();
+  state.schedule.slice().sort((a,b)=>String(a.subject).localeCompare(String(b.subject),'ar')||a.day-b.day||minutesOf(a.start)-minutesOf(b.start)).forEach(l=>{
+    const subject=l.subject||classSubject(l.classId);
+    if(!groups.has(subject))groups.set(subject,[]);
+    groups.get(subject).push(l);
+  });
+  return [...groups.entries()].map(([subject,lessons])=>`<div class="schedule-subject-group"><div class="schedule-subject-title"><strong>${subject}</strong><span>${lessons.length} حصص</span></div>${lessons.map(l=>`<div class="schedule-row"><div class="row between"><div><div class="sname">${dayNames[l.day]} · ${periodLabel(l.period)} · ${lessonClassLabel(l)}</div><div class="meta">${subject}</div></div><span class="timebadge">${l.start}–${l.end}</span></div><div class="actionline"><button data-edit-lesson="${l.id}">تعديل</button><button class="neg" data-delete-lesson="${l.id}">حذف</button></div></div>`).join('')}</div>`).join('');
+}
+function assignmentClassOptions(subject,selectedClassId=''){
+  const group=assignedSubjects().find(g=>g.subject===subject);
+  const classes=group?.classes||[];
+  return classes.map(cls=>`<option value="${cls.id}" ${cls.id===selectedClassId?'selected':''}>${cls.grade} — ${cls.name}</option>`).join('');
+}
 function openScheduleManager(){
-  const rows=state.schedule.slice().sort((a,b)=>a.day-b.day||minutesOf(a.start)-minutesOf(b.start)).map(l=>`<div class="schedule-row"><div class="row between"><div><div class="sname">${dayNames[l.day]} · ${periodLabel(l.period)} · ${lessonClassLabel(l)}</div><div class="meta">${l.subject}</div></div><span class="timebadge">${l.start}–${l.end}</span></div><div class="actionline"><button data-edit-lesson="${l.id}">تعديل</button><button class="neg" data-delete-lesson="${l.id}">حذف</button></div></div>`).join('');
-  openSheet(`<div class="row between"><div><div class="h2">الجدول والحصص</div><div class="small">أضف الجدول مرة واحدة، وبعدها تظهر الحصة المناسبة تلقائيًا.</div></div><button class="iconbtn" id="scheduleClose">×</button></div>
+  const rows=scheduleRowsBySubject();
+  const subjects=assignedSubjects();
+  const initialSubject=subjects[0]?.subject||'';
+  openSheet(`<div class="row between"><div><div class="h2">الجدول والحصص</div><div class="small">المادة أولًا، ثم تظهر الفصول المسندة لك في هذه المادة.</div></div><button class="iconbtn" id="scheduleClose">×</button></div>
   <div class="panel mt16"><div class="row between"><div><strong>تنبيه الحصة</strong><div class="small">اختياري، ويمكن إيقافه في أي وقت.</div></div><button class="switch ${state.scheduleSettings.notify?'on':''}" id="notifyToggle" aria-label="تنبيه الحصة"></button></div><div class="label mt12">وقت التنبيه</div><select class="field" id="notifyBefore"><option value="0">عند بداية الحصة</option><option value="5">قبل 5 دقائق</option><option value="10">قبل 10 دقائق</option><option value="15">قبل 15 دقيقة</option></select><div class="small mt8" id="notifyHint"></div></div>
-  <div class="panel mt12"><div class="section-title">إضافة حصة</div><div class="grid2"><select class="field" id="lessonDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="lessonPeriod">${periodOptions(1)}</select></div><div class="label mt8">الفصل</div><select class="field" id="lessonClassId">${state.classes.map(c=>`<option value="${c.id}">${c.grade} — ${c.name}</option>`).join('')}</select><div class="grid2 mt8"><input class="field" id="lessonStart" type="time" value="08:00"><input class="field" id="lessonEnd" type="time" value="08:45"></div><div class="label mt8">المادة</div><input class="field" id="lessonSubjectInput" value="العلوم"><button class="btn primary mt12" id="saveLesson" style="width:100%">إضافة الحصة</button></div>
+  <div class="panel mt12"><div class="section-title">إضافة حصة</div>
+    <div class="label">المادة المسندة</div><select class="field" id="lessonSubjectSelect">${subjects.map(g=>`<option value="${g.subject}">${g.subject}</option>`).join('')}</select>
+    <div class="label mt8">الفصل</div><select class="field" id="lessonClassId">${assignmentClassOptions(initialSubject)}</select>
+    <div class="grid2 mt8"><select class="field" id="lessonDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="lessonPeriod">${periodOptions(1)}</select></div>
+    <div class="grid2 mt8"><input class="field" id="lessonStart" type="time" value="08:00"><input class="field" id="lessonEnd" type="time" value="08:45"></div>
+    <button class="btn primary mt12" id="saveLesson" style="width:100%">إضافة الحصة</button></div>
   <div class="section-title mt16">جدولك الحالي</div><div class="schedule-list">${rows||'<div class="small">لا توجد حصص بعد.</div>'}</div>`);
-  q('#scheduleClose',sheet).onclick=closeSheet;q('#notifyBefore',sheet).value=String(state.scheduleSettings.before);
+  q('#scheduleClose',sheet).onclick=closeSheet;
+  q('#notifyBefore',sheet).value=String(state.scheduleSettings.before);
   q('#notifyBefore',sheet).onchange=e=>{state.scheduleSettings.before=Number(e.target.value);saveSchedule()};
-  q('#notifyToggle',sheet).onclick=async()=>{const hint=q('#notifyHint',sheet);if(state.scheduleSettings.notify){state.scheduleSettings.notify=false;saveSchedule();q('#notifyToggle',sheet).classList.remove('on');hint.textContent='تم إيقاف التنبيه.';return}if(typeof Notification==='undefined'){hint.textContent='الإشعارات غير مدعومة في هذا المتصفح.';return}let perm=Notification.permission;if(perm==='default')perm=await Notification.requestPermission();if(perm==='granted'){state.scheduleSettings.notify=true;saveSchedule();q('#notifyToggle',sheet).classList.add('on');hint.textContent='تم تفعيل تنبيه الحصص.'}else hint.textContent='يلزم السماح بالإشعارات من المتصفح أو الجهاز.'};
-  q('#saveLesson',sheet).onclick=()=>{const day=Number(q('#lessonDay',sheet).value),period=Number(q('#lessonPeriod',sheet).value),classId=q('#lessonClassId',sheet).value,start=q('#lessonStart',sheet).value,end=q('#lessonEnd',sheet).value,subject=q('#lessonSubjectInput',sheet).value.trim();if(!start||!end||minutesOf(end)<=minutesOf(start)||!subject)return;state.schedule.push({id:'l'+Date.now(),day,period,start,end,classId,subject});saveSchedule();closeSheet();renderLessonHero();openScheduleManager()};
+  q('#notifyToggle',sheet).onclick=async()=>{const hint=q('#notifyHint',sheet);if(state.scheduleSettings.notify){state.scheduleSettings.notify=false;saveSchedule();q('#notifyToggle',sheet).classList.remove('on');hint.textContent='تم إيقاف التنبيه.';return}if(typeof Notification==='undefined'){hint.textContent='الإشعارات غير مدعومة في هذا المتصفح.';return}let perm=Notification.permission;if(perm==='default')perm=await Notification.requestPermission();if(perm==='granted'){state.scheduleSettings.notify=true;saveSchedule();q('#notifyToggle',sheet).classList.add('on');hint.textContent='تم تفعيل تنبيه الحصص.'}else hint.textContent='يلزم السماح بالإشعارات من المتصفح أو الجهاز.';};
+  q('#lessonSubjectSelect',sheet).onchange=e=>{q('#lessonClassId',sheet).innerHTML=assignmentClassOptions(e.target.value)};
+  q('#saveLesson',sheet).onclick=()=>{const day=Number(q('#lessonDay',sheet).value),period=Number(q('#lessonPeriod',sheet).value),classId=q('#lessonClassId',sheet).value,start=q('#lessonStart',sheet).value,end=q('#lessonEnd',sheet).value,subject=q('#lessonSubjectSelect',sheet).value;if(!classId||!start||!end||minutesOf(end)<=minutesOf(start)||!subject)return;state.schedule.push({id:'l'+Date.now(),day,period,start,end,classId,subject});saveSchedule();closeSheet();renderLessonHero();openScheduleManager()};
   qa('[data-delete-lesson]',sheet).forEach(b=>b.onclick=()=>{state.schedule=state.schedule.filter(x=>x.id!==b.dataset.deleteLesson);saveSchedule();closeSheet();renderLessonHero();openScheduleManager()});
   qa('[data-edit-lesson]',sheet).forEach(b=>b.onclick=()=>openEditLesson(b.dataset.editLesson));
 }
-function openEditLesson(id){const l=state.schedule.find(x=>x.id===id);if(!l)return;openSheet(`<div class="h2">تعديل الحصة</div><div class="grid2 mt12"><select class="field" id="eDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="ePeriod">${periodOptions(l.period||1)}</select></div><div class="label mt8">الفصل</div><select class="field" id="eClass">${state.classes.map(c=>`<option value="${c.id}">${c.grade} — ${c.name}</option>`).join('')}</select><div class="grid2 mt8"><input class="field" id="eStart" type="time" value="${l.start}"><input class="field" id="eEnd" type="time" value="${l.end}"></div><input class="field mt8" id="eSubject" value="${l.subject}"><div class="row mt16"><button class="btn soft" id="cancelEditLesson">إلغاء</button><button class="btn primary" id="saveEditLesson" style="flex:1">حفظ التعديل</button></div>`);q('#eDay',sheet).value=String(l.day);q('#eClass',sheet).value=l.classId;q('#cancelEditLesson',sheet).onclick=()=>{closeSheet();openScheduleManager()};q('#saveEditLesson',sheet).onclick=()=>{const start=q('#eStart',sheet).value,end=q('#eEnd',sheet).value;if(minutesOf(end)<=minutesOf(start))return;l.day=Number(q('#eDay',sheet).value);l.period=Number(q('#ePeriod',sheet).value);l.classId=q('#eClass',sheet).value;l.start=start;l.end=end;l.subject=q('#eSubject',sheet).value.trim()||'المادة';saveSchedule();closeSheet();renderLessonHero();openScheduleManager()}}
+function openEditLesson(id){
+  const l=state.schedule.find(x=>x.id===id);if(!l)return;
+  const subjects=assignedSubjects(),subject=subjects.some(g=>g.subject===l.subject)?l.subject:(subjects[0]?.subject||l.subject);
+  openSheet(`<div class="h2">تعديل الحصة</div>
+    <div class="label mt12">المادة المسندة</div><select class="field" id="eSubject">${subjects.map(g=>`<option value="${g.subject}" ${g.subject===subject?'selected':''}>${g.subject}</option>`).join('')}</select>
+    <div class="label mt8">الفصل</div><select class="field" id="eClass">${assignmentClassOptions(subject,l.classId)}</select>
+    <div class="grid2 mt8"><select class="field" id="eDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="ePeriod">${periodOptions(l.period||1)}</select></div>
+    <div class="grid2 mt8"><input class="field" id="eStart" type="time" value="${l.start}"><input class="field" id="eEnd" type="time" value="${l.end}"></div>
+    <div class="row mt16"><button class="btn soft" id="cancelEditLesson">إلغاء</button><button class="btn primary" id="saveEditLesson" style="flex:1">حفظ التعديل</button></div>`);
+  q('#eDay',sheet).value=String(l.day);
+  q('#eSubject',sheet).onchange=e=>{q('#eClass',sheet).innerHTML=assignmentClassOptions(e.target.value)};
+  q('#cancelEditLesson',sheet).onclick=()=>{closeSheet();openScheduleManager()};
+  q('#saveEditLesson',sheet).onclick=()=>{const start=q('#eStart',sheet).value,end=q('#eEnd',sheet).value,classId=q('#eClass',sheet).value,subject=q('#eSubject',sheet).value;if(!classId||minutesOf(end)<=minutesOf(start))return;l.day=Number(q('#eDay',sheet).value);l.period=Number(q('#ePeriod',sheet).value);l.classId=classId;l.start=start;l.end=end;l.subject=subject;saveSchedule();closeSheet();renderLessonHero();openScheduleManager()};
+}
 
 function assignedSubjects(){
+  const assignments=(state.assignments&&state.assignments.length)
+    ?state.assignments
+    :state.classes.map(cls=>({id:'fallback-'+cls.id,subject:cls.subject||'بدون مادة',classId:cls.id,source:'manual'}));
   const map=new Map();
-  state.classes.forEach(cls=>{
-    const subject=(cls.subject||'بدون مادة').trim()||'بدون مادة';
+  assignments.forEach(a=>{
+    const subject=(a.subject||'بدون مادة').trim()||'بدون مادة';
+    const cls=state.classes.find(c=>c.id===a.classId);
+    if(!cls)return;
     if(!map.has(subject))map.set(subject,[]);
-    map.get(subject).push(cls);
+    if(!map.get(subject).some(c=>c.id===cls.id))map.get(subject).push(cls);
   });
   return [...map.entries()].map(([subject,classes])=>({subject,classes}));
 }
+function assignmentFor(subject,classId){
+  return (state.assignments||[]).find(a=>a.subject===subject&&a.classId===classId)||null;
+}
 function classSubject(classId){
-  return state.classes.find(c=>c.id===classId)?.subject||'بدون مادة';
+  const scheduled=state.schedule.find(l=>l.classId===classId);
+  if(scheduled?.subject)return scheduled.subject;
+  const assigned=(state.assignments||[]).find(a=>a.classId===classId);
+  return assigned?.subject||state.classes.find(c=>c.id===classId)?.subject||'بدون مادة';
 }
 function subjectClassGroupsHtml(buttonAttr){
   return assignedSubjects().map(group=>{
