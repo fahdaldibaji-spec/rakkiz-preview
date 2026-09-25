@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.52</title>
+<title>ركّز — موقع تجريبي v0.53</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -412,6 +412,9 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
     <section data-view="account" class="hidden">
       <div class="h1">الحساب</div>
       <div class="card pad mt12">
+        <div class="row between"><div><strong id="accountTeacherName">أحمد</strong><div class="small mt8">اسم الحساب المستخدم تلقائيًا في التنبيهات والتقارير.</div></div><span class="badge">حساب المعلم</span></div>
+      </div>
+      <div class="card pad mt12">
         <div class="row between"><div><strong>الجدول والحصص</strong><div class="small mt8">يعرض ركّز الحصة المناسبة تلقائيًا حسب اليوم والوقت.</div></div><button class="btn brown" id="accountScheduleBtn" style="min-height:38px">إدارة</button></div>
       </div>
       <div class="card pad mt12">
@@ -494,7 +497,8 @@ const state={
     {id:'l5',day:1,period:2,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'},
     {id:'l6',day:2,period:4,start:'10:45',end:'11:30',classId:'c4',subject:'الرياضيات'}
   ],
-  scheduleSettings:{notify:false,before:5,teacherName:'أحمد'},
+  currentUser:{id:'teacher-demo',name:'أحمد',source:'account'},
+  scheduleSettings:{notify:false,before:5},
   attendance:{},
   attendanceGrade:{max:10,mode:'decrease',present:0,absent:-1,late:-0.5,excused:0},
   events:[],
@@ -558,6 +562,7 @@ function loadReportPrefs(){
 }
 loadReportPrefs();
 function renderAccount(){
+  const nameEl=q('#accountTeacherName');if(nameEl)nameEl.textContent=teacherDisplayName();
   const el=q('#reportSettingsSummary');if(!el)return;
   const b=state.reportBranding, parts=[];
   if(b.showMinistry&&b.ministryLogo)parts.push('شعار الوزارة');
@@ -772,7 +777,7 @@ function scheduleConflict(day,start,end,ignoreId=null){
   return state.schedule.find(l=>l.day===day&&l.id!==ignoreId&&s<minutesOf(l.end)&&e>minutesOf(l.start))||null;
 }
 function dayLessonCount(day){return state.schedule.filter(l=>l.day===day).length}
-function teacherDisplayName(){return (state.scheduleSettings.teacherName||'أحمد').trim()||'أحمد'}
+function teacherDisplayName(){return (state.currentUser?.name||'المعلم').trim()||'المعلم'}
 function openLessonFromNotification(lessonId){
   const l=state.schedule.find(x=>x.id===lessonId);if(!l)return;
   state.classId=l.classId;showView('followup');
@@ -846,7 +851,7 @@ function openScheduleManager(){
   openSheet(`<div class="row between"><div><div class="h2">الجدول والحصص</div><div class="small">جدولك الشخصي فقط — الأيام والحصص التي تدرّسها فعليًا.</div></div><button class="iconbtn" id="scheduleClose">×</button></div>
   <div class="panel mt16">
     <div class="row between"><div><strong>تنبيه الحصة</strong><div class="small">اختياري · إشعار واحد لكل حصة.</div></div><button class="switch ${state.scheduleSettings.notify?'on':''}" id="notifyToggle" aria-label="تنبيه الحصة"></button></div>
-    <div class="label mt12">اسم المعلم في التنبيه</div><input class="field" id="notifyTeacherName" value="${teacherDisplayName()}" placeholder="مثال: أحمد">
+    <div class="small mt12">سيستخدم ركّز اسم المعلم المسجل في الحساب تلقائيًا داخل الإشعار.</div>
     <div class="label mt8">وقت التنبيه</div><select class="field" id="notifyBefore"><option value="0">عند بداية الحصة</option><option value="5">قبل 5 دقائق</option><option value="10">قبل 10 دقائق</option><option value="15">قبل 15 دقيقة</option></select>
     <div class="small mt8" id="notifyHint">${state.scheduleSettings.notify?'التنبيه مفعّل. الضغط على الإشعار يفتح تحضير الحصة مباشرة.':'التنبيه متوقف ولن يصلك شيء.'}</div>
   </div>
@@ -854,7 +859,6 @@ function openScheduleManager(){
   <div class="schedule-list">${days||'<div class="notice mt12">لا توجد حصص بعد. أضف فقط الأيام والحصص الموجودة في جدولك.</div>'}</div>`);
   q('#scheduleClose',sheet).onclick=closeSheet;
   q('#notifyBefore',sheet).value=String(state.scheduleSettings.before);
-  q('#notifyTeacherName',sheet).onchange=e=>{state.scheduleSettings.teacherName=e.target.value.trim()||'أحمد';saveSchedule()};
   q('#notifyBefore',sheet).onchange=e=>{state.scheduleSettings.before=Number(e.target.value);saveSchedule()};
   q('#notifyToggle',sheet).onclick=async()=>{
     const hint=q('#notifyHint',sheet);
