@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.64</title>
+<title>ركّز — موقع تجريبي v0.65</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -365,6 +365,16 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
           <button class="btn soft mt12" id="applySelectedToAll" style="width:100%;min-height:34px;font-size:13.5px;font-weight:800">تطبيق على الجميع <span style="opacity:.62;font-size:12.5px">— اختياري</span></button>
           <div class="selected-eval mt12" id="quickEvalHint"></div>
         </div>
+      </div>
+
+      <div id="customCardTools" class="hidden">
+        <div class="card pad">
+          <div class="row between">
+            <div><div class="section-title" id="customCardTitle" style="margin:0"></div><div class="small">بطاقات مستقلة — كل بطاقة لها درجتها وتاريخها ورصدها</div></div>
+            <button class="btn primary" id="addCustomCardBtn" style="min-height:40px">+ إضافة بطاقة</button>
+          </div>
+        </div>
+        <div id="customCards" class="test-cards mt12"></div>
       </div>
 
       <div id="homeworkTools" class="hidden">
@@ -1210,6 +1220,99 @@ function renderModuleTabs(){
   qa('[data-module]',box).forEach(b=>b.addEventListener('click',()=>{state.module=b.dataset.module;renderFollowup()}));
   q('#addMainItem',box).addEventListener('click',openAddMainItem);
 }
+function currentCustomItem(){
+  if(!state.module.startsWith('custom:'))return null;
+  const id=state.module.split(':')[1];
+  return state.items.custom.find(x=>x.id===id)||null;
+}
+function customCardEvents(itemId,cardId){
+  return state.events.filter(e=>e.module==='custom-card'&&e.customItemId===itemId&&e.customCardId===cardId);
+}
+function customCardsForCurrentClass(item){
+  item.cards=item.cards||[];
+  return item.cards.filter(card=>card.classId===state.classId).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(b.id).localeCompare(String(a.id)));
+}
+function renderCustomIndependentCards(item){
+  const box=q('#customCards');if(!box||!item)return;
+  const cards=customCardsForCurrentClass(item);
+  if(!cards.length){
+    box.innerHTML='<div class="test-empty">لا توجد بطاقات داخل «'+htmlEsc(item.name)+'» بعد.<br>اضغط «+ إضافة بطاقة» لإنشاء أول نشاط.</div>';
+    return;
+  }
+  box.innerHTML=cards.map(card=>{
+    const rows=customCardEvents(item.id,card.id);
+    const valid=rows.filter(e=>Number.isFinite(Number(e.value)));
+    const total=currentStudents().length;
+    const avg=valid.length&&card.max?Math.round(valid.reduce((a,e)=>a+(Number(e.value)/Number(card.max))*100,0)/valid.length):null;
+    return `<div class="test-card homework-card-click" data-open-custom-card="${card.id}" role="button" tabindex="0">
+      <div class="test-card-head">
+        <div class="test-card-title"><strong>${card.name}</strong><span>${dualDateText(card.date)} · ${card.subject||classSubject(card.classId)}</span></div>
+        <span class="scorepill">/${card.max}</span>
+      </div>
+      <div class="test-card-meta">
+        <span class="test-card-stat">${valid.length}/${total} رصد</span>
+        ${avg!==null?`<span class="test-card-stat">المتوسط ${avg}%</span>`:''}
+      </div>
+      <div class="homework-card-hint">اضغط البطاقة لفتح الطلاب</div>
+    </div>`;
+  }).join('');
+  qa('[data-open-custom-card]',box).forEach(card=>{
+    card.onclick=()=>openCustomCardRoster(item.id,card.dataset.openCustomCard);
+    card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openCustomCardRoster(item.id,card.dataset.openCustomCard)}};
+  });
+}
+function openAddCustomCard(itemId){
+  const item=state.items.custom.find(x=>x.id===itemId);if(!item)return;
+  const n=customCardsForCurrentClass(item).length+1;
+  openSheet(`<div class="h2">إضافة بطاقة — ${item.name}</div>
+    <div class="label mt16">اسم البطاقة</div><input class="field" id="customCardName" value="${item.name} ${n}">
+    <div class="grid2 mt12"><div><div class="label">الدرجة</div><input class="field" id="customCardMax" type="number" min=".25" step=".25" value="5"></div><div><div class="label">التاريخ</div><input class="field" id="customCardDate" type="date" value="${state.date}"></div></div>
+    <button class="btn primary mt16" id="saveCustomCard" style="width:100%">حفظ البطاقة</button>`);
+  q('#saveCustomCard',sheet).onclick=()=>{
+    const name=q('#customCardName',sheet).value.trim()||item.name;
+    const max=Number(q('#customCardMax',sheet).value),date=q('#customCardDate',sheet).value||state.date;
+    if(!Number.isFinite(max)||max<=0){showToast('حدد درجة صحيحة للبطاقة.');return}
+    item.cards=item.cards||[];
+    item.cards.push({id:'cc'+Date.now()+Math.random().toString(36).slice(2,5),name,max,date,classId:state.classId,subject:classSubject(state.classId),createdAt:new Date().toISOString()});
+    closeSheet();renderFollowup();showToast('تمت إضافة «'+name+'».','');
+  };
+}
+function openCustomCardRoster(itemId,cardId){
+  const item=state.items.custom.find(x=>x.id===itemId);if(!item)return;
+  const card=(item.cards||[]).find(x=>x.id===cardId);if(!card)return;
+  const students=state.students.filter(s=>s.classId===card.classId);
+  const byStudent=new Map(customCardEvents(itemId,cardId).map(e=>[e.studentId,e]));
+  openSheet(`<div class="row between"><div><div class="h2">${card.name}</div><div class="small">/${card.max}<br>${dualDateText(card.date)}</div></div><button class="iconbtn" id="customCardClose">×</button></div>
+    <div class="panel mt16">${students.map(st=>{const e=byStudent.get(st.id);return `<div class="test-result-row"><div class="test-result-name"><strong>${st.name}</strong><span>${e?'تم الرصد':'لم يرصد بعد'}</span></div><span class="scorepill">${e?`${e.value}/${card.max}`:'—'}</span></div>`}).join('')}</div>
+    <button class="btn primary mt12" id="customCardGradeBtn" style="width:100%">إدخال / تعديل الدرجات</button>`);
+  q('#customCardClose',sheet).onclick=closeSheet;
+  q('#customCardGradeBtn',sheet).onclick=()=>openCustomCardGrades(itemId,cardId);
+}
+function openCustomCardGrades(itemId,cardId){
+  const item=state.items.custom.find(x=>x.id===itemId);if(!item)return;
+  const card=(item.cards||[]).find(x=>x.id===cardId);if(!card)return;
+  const existing=new Map(customCardEvents(itemId,cardId).map(e=>[e.studentId,e]));
+  const students=state.students.filter(s=>s.classId===card.classId);
+  sheet.innerHTML=`<div class="row between"><div><div class="h2">${card.name} /${card.max}</div><div class="small">${dualDateText(card.date)}</div></div><button class="iconbtn" id="customGradeClose">×</button></div>
+    <div class="mt12">${students.map(st=>{const e=existing.get(st.id);return `<div class="row between mt8"><span class="sname">${st.name}</span><input class="field" style="width:100px" type="number" min="0" max="${card.max}" step=".25" data-custom-grade="${st.id}" value="${e?.value??''}" placeholder="—"></div>`}).join('')}</div>
+    <button class="btn primary mt16" id="saveCustomGrades" style="width:100%">حفظ الرصد</button>`;
+  q('#customGradeClose',sheet).onclick=closeSheet;
+  q('#saveCustomGrades',sheet).onclick=()=>{
+    let bad=false;
+    qa('[data-custom-grade]',sheet).forEach(inp=>{const v=inp.value===''?null:Number(inp.value);if(v!=null&&(!Number.isFinite(v)||v<0||v>card.max))bad=true});
+    if(bad){showToast('يوجد رقم خارج الدرجة المحددة.');return}
+    qa('[data-custom-grade]',sheet).forEach(inp=>{
+      const sid=inp.dataset.customGrade;
+      const old=state.events.find(e=>e.module==='custom-card'&&e.customItemId===itemId&&e.customCardId===cardId&&e.studentId===sid);
+      if(inp.value===''){if(old)state.events=state.events.filter(e=>e!==old);return}
+      const value=Number(inp.value);
+      if(old){old.value=value;old.max=card.max;old.label=card.name;old.date=card.date;old.updatedAt=new Date().toISOString()}
+      else state.events.push({id:'e'+Date.now()+Math.random(),module:'custom-card',customItemId:itemId,customCardId:cardId,classId:card.classId,studentId:sid,label:card.name,value,max:card.max,date:card.date,follow:false,resolved:true,createdAt:new Date().toISOString()});
+    });
+    closeSheet();renderFollowup();showToast('تم حفظ رصد «'+card.name+'».','');
+  };
+}
+
 function homeworkStatusLabel(status){return ({complete:'تم الرصد',incomplete:'لم يكمل الواجب',missing:'لم يحضر',excused:'معذور'})[status]||'غير مرصود'}
 function homeworkEvents(homeworkId){return state.events.filter(e=>e.module==='homework'&&e.homeworkId===homeworkId)}
 function homeworkClassIdFromEvent(e){
@@ -1501,10 +1604,18 @@ function openTestGradeMethods(testId){
 }
 
 function renderTools(){
+  const customItem=currentCustomItem();
+  const customCardItem=customItem?.usage==='cards'?customItem:null;
   q('#attendanceTools').classList.toggle('hidden',state.module!=='attendance');
-  q('#itemTools').classList.toggle('hidden',!(state.module==='participation'||state.module==='behavior'||state.module.startsWith('custom:')));
+  q('#itemTools').classList.toggle('hidden',!(state.module==='participation'||state.module==='behavior'||(customItem&&customItem.usage!=='cards')));
+  q('#customCardTools').classList.toggle('hidden',!customCardItem);
   q('#homeworkTools').classList.toggle('hidden',state.module!=='homework');
   q('#testTools').classList.toggle('hidden',state.module!=='tests');
+  if(customCardItem){
+    q('#customCardTitle').textContent=customCardItem.name;
+    q('#addCustomCardBtn').onclick=()=>openAddCustomCard(customCardItem.id);
+    renderCustomIndependentCards(customCardItem);
+  }
   if(state.module==='homework')renderHomeworkCards();
   if(state.module==='tests')renderTestCards();
   if(state.module==='attendance'){
@@ -1615,6 +1726,12 @@ function attendancePulseHtml(studentId){
 
 function renderStudents(){
   const box=q('#studentList');
+  const customItem=currentCustomItem();
+  if(customItem?.usage==='cards'){
+    box.classList.add('hidden');
+    renderCustomIndependentCards(customItem);
+    return;
+  }
   if(state.module==='homework'){
     box.classList.add('hidden');
     renderHomeworkCards();
@@ -1773,7 +1890,7 @@ function reportStats(studentId){
   const testPct=tests.length?Math.round(tests.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/tests.length):0;
   const homeworkRows=state.events.filter(e=>e.studentId===studentId&&e.module==='homework'&&Number(e.max)>0&&Number.isFinite(Number(e.value)));
   const homeworkPct=homeworkRows.length?Math.round(homeworkRows.reduce((a,e)=>a+(Number(e.value)/Number(e.max))*100,0)/homeworkRows.length):0;
-  const itemRows=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat(state.items.custom||[]).map(m=>{
+  const itemRows=['participation','behavior'].map(k=>state.items[k]?.[0]).filter(Boolean).concat((state.items.custom||[]).filter(m=>m.usage!=='cards')).map(m=>{
     const value=scoreFor(studentId,m); return {name:m.name,value,max:m.max,pct:m.max?Math.round(value/m.max*100):0};
   });
   if(homeworkRows.length)itemRows.splice(1,0,{name:'الواجبات',pct:homeworkPct});
