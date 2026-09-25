@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.39</title>
+<title>ركّز — موقع تجريبي v0.40</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -444,8 +444,8 @@ const state={
   lessonTitles:{},
   reportClassId:'c1',
   reportBranding:{
-    showMinistry:false,ministryLogo:'',
-    showSchoolLogo:false,schoolLogo:'',
+    showMinistry:false,ministryLogo:'',ministrySide:'right',
+    showSchoolLogo:false,schoolLogo:'',schoolSide:'left',
     showCountry:true,country:'المملكة العربية السعودية',
     showEducationAdmin:false,educationAdmin:'',
     showSchoolName:false,schoolName:''
@@ -542,8 +542,8 @@ function openReportSettings(){
   const b=state.reportBranding,sig=state.reportSignatures;
   openReportSheet('<div class="row between"><div><div class="h2">إعدادات التقارير والترويسة</div><div class="small mt8">تُستخدم هذه الإعدادات تلقائيًا في كل تقارير ركّز.</div></div><button class="iconbtn" id="rsClose">×</button></div>'
     +'<div class="form-section"><div class="form-section-title">الشعارات</div><div class="report-settings-logo-grid">'
-      +'<div class="report-logo-card"><label class="setting-check"><input type="checkbox" id="rsMinistryShow" '+(b.showMinistry?'checked':'')+'>إظهار شعار وزارة التعليم</label><div class="report-logo-preview" id="rsMinistryPreview">'+(b.ministryLogo?'<img src="'+b.ministryLogo+'">':'<span>لم يرفع شعار</span>')+'</div><div class="logo-file-row"><label class="btn soft" for="rsMinistryFile">رفع الشعار</label><input id="rsMinistryFile" type="file" accept="image/*" hidden><button class="btn soft" id="rsMinistryClear">مسح</button></div></div>'
-      +'<div class="report-logo-card"><label class="setting-check"><input type="checkbox" id="rsSchoolLogoShow" '+(b.showSchoolLogo?'checked':'')+'>إظهار شعار المدرسة</label><div class="report-logo-preview" id="rsSchoolLogoPreview">'+(b.schoolLogo?'<img src="'+b.schoolLogo+'">':'<span>اختياري</span>')+'</div><div class="logo-file-row"><label class="btn soft" for="rsSchoolLogoFile">رفع الشعار</label><input id="rsSchoolLogoFile" type="file" accept="image/*" hidden><button class="btn soft" id="rsSchoolLogoClear">مسح</button></div></div>'
+      +'<div class="report-logo-card"><label class="setting-check"><input type="checkbox" id="rsMinistryShow" '+(b.showMinistry?'checked':'')+'>إظهار شعار وزارة التعليم</label><div class="report-logo-preview" id="rsMinistryPreview">'+(b.ministryLogo?'<img src="'+b.ministryLogo+'">':'<span>لم يرفع شعار</span>')+'</div><div class="label mt8">موضع الشعار</div><select class="field" id="rsMinistrySide"><option value="right" '+((b.ministrySide||'right')==='right'?'selected':'')+'>يمين الترويسة</option><option value="left" '+((b.ministrySide||'right')==='left'?'selected':'')+'>يسار الترويسة</option></select><div class="logo-file-row"><label class="btn soft" for="rsMinistryFile">رفع الشعار</label><input id="rsMinistryFile" type="file" accept="image/*" hidden><button class="btn soft" id="rsMinistryClear">مسح</button></div></div>'
+      +'<div class="report-logo-card"><label class="setting-check"><input type="checkbox" id="rsSchoolLogoShow" '+(b.showSchoolLogo?'checked':'')+'>إظهار شعار المدرسة</label><div class="report-logo-preview" id="rsSchoolLogoPreview">'+(b.schoolLogo?'<img src="'+b.schoolLogo+'">':'<span>اختياري</span>')+'</div><div class="label mt8">موضع الشعار</div><select class="field" id="rsSchoolSide"><option value="right" '+((b.schoolSide||'left')==='right'?'selected':'')+'>يمين الترويسة</option><option value="left" '+((b.schoolSide||'left')==='left'?'selected':'')+'>يسار الترويسة</option></select><div class="logo-file-row"><label class="btn soft" for="rsSchoolLogoFile">رفع الشعار</label><input id="rsSchoolLogoFile" type="file" accept="image/*" hidden><button class="btn soft" id="rsSchoolLogoClear">مسح</button></div></div>'
     +'</div></div>'
     +'<div class="form-section"><div class="form-section-title">بيانات الترويسة</div>'
       +'<label class="setting-check"><input type="checkbox" id="rsCountryShow" '+(b.showCountry?'checked':'')+'>إظهار اسم الدولة</label><input class="field mt8" id="rsCountry" value="'+(b.country||'')+'" placeholder="المملكة العربية السعودية">'
@@ -561,20 +561,27 @@ function openReportSettings(){
   q('#rsClose',sheet).onclick=closeSheet;
   async function setLogo(which,file){
     try{
-      const data=await imageFileToDataURL(file);
-      if(which==='ministry'){state.reportBranding.ministryLogo=data;q('#rsMinistryPreview',sheet).innerHTML=data?'<img src="'+data+'">':'<span>لم يرفع شعار</span>'}
-      else{state.reportBranding.schoolLogo=data;q('#rsSchoolLogoPreview',sheet).innerHTML=data?'<img src="'+data+'">':'<span>اختياري</span>'}
+      const data=await imageFileToDataURL(file,320);
+      if(which==='ministry'){
+        state.reportBranding.ministryLogo=data;state.reportBranding.showMinistry=!!data;
+        q('#rsMinistryShow',sheet).checked=!!data;
+        q('#rsMinistryPreview',sheet).innerHTML=data?'<img src="'+data+'">':'<span>لم يرفع شعار</span>';
+      }else{
+        state.reportBranding.schoolLogo=data;state.reportBranding.showSchoolLogo=!!data;
+        q('#rsSchoolLogoShow',sheet).checked=!!data;
+        q('#rsSchoolLogoPreview',sheet).innerHTML=data?'<img src="'+data+'">':'<span>اختياري</span>';
+      }
     }catch{showToast('تعذر قراءة الصورة. اختر ملف صورة آخر.')}
   }
   q('#rsMinistryFile',sheet).onchange=e=>setLogo('ministry',e.target.files?.[0]);
   q('#rsSchoolLogoFile',sheet).onchange=e=>setLogo('school',e.target.files?.[0]);
-  q('#rsMinistryClear',sheet).onclick=()=>{state.reportBranding.ministryLogo='';q('#rsMinistryPreview',sheet).innerHTML='<span>لم يرفع شعار</span>'};
-  q('#rsSchoolLogoClear',sheet).onclick=()=>{state.reportBranding.schoolLogo='';q('#rsSchoolLogoPreview',sheet).innerHTML='<span>اختياري</span>'};
+  q('#rsMinistryClear',sheet).onclick=()=>{state.reportBranding.ministryLogo='';state.reportBranding.showMinistry=false;q('#rsMinistryShow',sheet).checked=false;q('#rsMinistryPreview',sheet).innerHTML='<span>لم يرفع شعار</span>'};
+  q('#rsSchoolLogoClear',sheet).onclick=()=>{state.reportBranding.schoolLogo='';state.reportBranding.showSchoolLogo=false;q('#rsSchoolLogoShow',sheet).checked=false;q('#rsSchoolLogoPreview',sheet).innerHTML='<span>اختياري</span>'};
   q('#rsSave',sheet).onclick=()=>{
     state.reportBranding={
       ...state.reportBranding,
-      showMinistry:q('#rsMinistryShow',sheet).checked,
-      showSchoolLogo:q('#rsSchoolLogoShow',sheet).checked,
+      showMinistry:q('#rsMinistryShow',sheet).checked,ministrySide:q('#rsMinistrySide',sheet).value,
+      showSchoolLogo:q('#rsSchoolLogoShow',sheet).checked,schoolSide:q('#rsSchoolSide',sheet).value,
       showCountry:q('#rsCountryShow',sheet).checked,country:q('#rsCountry',sheet).value.trim(),
       showEducationAdmin:q('#rsAdminShow',sheet).checked,educationAdmin:q('#rsAdmin',sheet).value.trim(),
       showSchoolName:q('#rsSchoolShow',sheet).checked,schoolName:q('#rsSchool',sheet).value.trim()
