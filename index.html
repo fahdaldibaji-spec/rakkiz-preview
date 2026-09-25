@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.62</title>
+<title>ركّز — موقع تجريبي v0.63</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -60,7 +60,7 @@ button{cursor:pointer}
 .main section[data-view]>.small:first-of-type{color:#647b7c}
 .datebox{background:linear-gradient(145deg,#fff,#f3f8f6 62%,#f7efe9)}
 .toolcard{background:linear-gradient(145deg,#fff,#f4f9f7);border-color:#d5e5e2;box-shadow:0 4px 14px rgba(15,79,77,.035)}
-.toolcard:nth-child(3n+2){background:linear-gradient(145deg,#fff,#f8f1eb)}
+.toolcard:nth-child(3n+2){background:linear-gradient(145deg,#fff,#f8f1eb)}.usage-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}.usage-card{border:1px solid var(--line);background:#fff;border-radius:16px;padding:13px;text-align:right;color:var(--ink);min-height:104px}.usage-card.active{background:linear-gradient(145deg,var(--green),#176d68);color:#fff;border-color:transparent}.usage-card strong{display:block;font-family:"IBM Plex Sans Arabic";font-size:14px;line-height:1.5}.usage-card span{display:block;font-size:11px;line-height:1.7;color:var(--muted);margin-top:5px}.usage-card.active span{color:rgba(255,255,255,.84)}
 .classcard{background:linear-gradient(145deg,#fff,#eef7f4);border-right:4px solid rgba(15,79,77,.55)}
 .subject-group{margin-bottom:16px;border:1px solid #d9e7e4;border-radius:18px;padding:10px;background:linear-gradient(145deg,#fbfdfc,#f7f1eb)}
 .subject-group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 4px 9px}.subject-group-head strong{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;color:var(--green);font-size:16px}.subject-group-head span{display:block;font-size:11.5px;color:var(--muted);font-weight:700}.subject-badge{padding:4px 8px!important;border-radius:999px;background:var(--green3);color:var(--green)!important}.subject-class-list{display:flex;flex-direction:column;gap:8px}.report-picker-subject{min-width:100%;padding:7px 0}.report-picker-subject>strong{display:block;margin-bottom:6px;color:var(--green);font-size:13px}
@@ -1106,7 +1106,7 @@ function cycleAtt(sid){
 function moduleSource(){
   if(['participation','behavior'].includes(state.module))return state.items[state.module];
   if(state.module.startsWith('custom:')){
-    const id=state.module.split(':')[1]; return state.items.custom.filter(x=>x.id===id);
+    const id=state.module.split(':')[1]; return state.items.custom.filter(x=>x.id===id&&x.usage!=='cards');
   }
   return [];
 }
@@ -2491,19 +2491,42 @@ function openNote(id){
 }
 
 function openAddMainItem(){
-  openSheet(`<div class="h2">إضافة بند رئيسي</div><div class="small mt8">سيظهر البند الجديد بجانب «الاختبارات» في شريط المتابعة.</div>
-  <div class="label mt16">اسم البند</div><input class="field" id="miName" placeholder="مثال: الحفظ">
-  <div class="label mt12">الدرجة الكاملة للبند</div><input class="field" id="miMax" type="number" min="0.25" step=".25" value="10">
-  <div class="label mt12">طريقة الاحتساب</div><select class="field" id="miMode"><option value="increase">تزايد — يبدأ 0</option><option value="decrease">تناقص — يبدأ من الدرجة الكاملة</option></select>
-  <div class="notice mt12">في التزايد يبدأ الطالب من صفر، وفي التناقص يبدأ من الدرجة الكاملة. كل حدث يُطبق فورًا داخل الحد 0 إلى الدرجة الكاملة، ولا يوجد رصيد سالب أو زائد مخفي.</div>
-  <div class="row mt16"><button class="btn soft" id="cancelMI">إلغاء</button><button class="btn primary" id="saveMI" style="flex:1">إنشاء البند</button></div>`);
+  openSheet(`<div class="h2">إضافة بند رئيسي</div>
+    <div class="label mt16">اسم البند</div><input class="field" id="miName" placeholder="مثال: الحفظ أو أوراق العمل">
+    <div class="section-title mt16">كيف تريد استخدام هذا البند؟</div>
+    <div class="usage-choice">
+      <button class="usage-card active" data-usage="continuous"><strong>تقييم مستمر</strong><span>مثل المشاركة والسلوك — تقييم مباشر للطلاب ببنود فرعية.</span></button>
+      <button class="usage-card" data-usage="cards"><strong>بطاقات مستقلة</strong><span>مثل الواجب والاختبار — كل نشاط أو سجل له بطاقة مستقلة.</span></button>
+    </div>
+    <div id="continuousSettings" class="mt16">
+      <div class="label">الدرجة الكاملة للبند</div><input class="field" id="miMax" type="number" min="0.25" step=".25" value="10">
+      <div class="label mt12">طريقة الاحتساب</div><select class="field" id="miMode"><option value="increase">تزايد — يبدأ 0</option><option value="decrease">تناقص — يبدأ من الدرجة الكاملة</option></select>
+    </div>
+    <div id="cardsSettings" class="hidden mt16">
+      <div class="notice">داخل هذا البند تنشئ بطاقات مستقلة، وكل بطاقة لها اسمها ودرجتها وتاريخها ورصد طلابها.</div>
+    </div>
+    <div class="row mt16"><button class="btn soft" id="cancelMI">إلغاء</button><button class="btn primary" id="saveMI" style="flex:1">إنشاء البند</button></div>`);
+  let usage='continuous';
+  qa('[data-usage]',sheet).forEach(btn=>btn.onclick=()=>{
+    usage=btn.dataset.usage;
+    qa('[data-usage]',sheet).forEach(x=>x.classList.toggle('active',x===btn));
+    q('#continuousSettings',sheet).classList.toggle('hidden',usage!=='continuous');
+    q('#cardsSettings',sheet).classList.toggle('hidden',usage!=='cards');
+  });
   q('#cancelMI',sheet).onclick=closeSheet;
   q('#saveMI',sheet).onclick=()=>{
-    const name=q('#miName',sheet).value.trim(), max=Number(q('#miMax',sheet).value), mode=q('#miMode',sheet).value;
-    if(!name||!Number.isFinite(max)||max<=0)return;
-    const id='cst'+Date.now();state.items.custom.push({id,name,max,base:mode==='decrease'?'full':'zero',mode,subs:[]});
-    state.module='custom:'+id;closeSheet();renderFollowup();openManageItems();
-  }
+    const name=q('#miName',sheet).value.trim();if(!name)return;
+    const id='cst'+Date.now();
+    if(usage==='continuous'){
+      const max=Number(q('#miMax',sheet).value),mode=q('#miMode',sheet).value;
+      if(!Number.isFinite(max)||max<=0)return;
+      state.items.custom.push({id,name,usage:'continuous',max,base:mode==='decrease'?'full':'zero',mode,subs:[]});
+      state.module='custom:'+id;closeSheet();renderFollowup();openManageItems();return;
+    }
+    state.items.custom.push({id,name,usage:'cards',max:0,base:'zero',mode:'increase',subs:[],cards:[]});
+    state.module='custom:'+id;closeSheet();renderFollowup();
+    showToast('تم إنشاء «'+name+'» بنمط بطاقات مستقلة.','');
+  };
 }
 function currentMainForManage(){
   const src=moduleSource();ensureItemSelection();return src.find(x=>x.id===state.selectedMain)||src[0];
