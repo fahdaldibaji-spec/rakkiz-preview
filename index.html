@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.58</title>
+<title>ركّز — موقع تجريبي v0.59</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1406,11 +1406,29 @@ function openTestResults(testId){
     </div>
     <button class="btn primary mt12" id="editThisTest" style="width:100%">إدخال / تعديل الدرجات</button>`);
   q('#testResultClose',sheet).onclick=closeSheet;
-  q('#editThisTest',sheet).onclick=()=>openExistingTestGrades(testId);
+  q('#editThisTest',sheet).onclick=()=>openTestGradeMethods(testId);
 }
 function openExistingTestGrades(testId){
+  openTestGradeMethods(testId);
+}
+function openTestGradeMethods(testId){
   const t=state.tests.find(x=>x.id===testId);if(!t)return;
-  openManualGrades({testId:t.id,name:t.name,max:t.max,type:t.type,date:t.date},true);
+  const count=testGrades(t.id).length;
+  openSheet(`<div class="row between"><div><div class="h2">${t.name}</div><div class="small">${testTypeLabel(t.type)} · /${t.max} · ${t.date}</div></div><button class="iconbtn" id="testMethodsClose">×</button></div>
+    <div class="notice mt12">${count?'يوجد '+count+' درجات محفوظة. أي طريقة تختارها ستعدّل نفس الاختبار ولن تنشئ اختبارًا جديدًا.':'اختر طريقة إدخال الدرجات لهذا الاختبار.'}</div>
+    <div class="section-title mt16">طريقة إدخال الدرجات</div>
+    <div class="grid2">
+      <button class="toolcard" data-existing-source="camera"><strong>تصوير كشف</strong><span>قراءة أسماء ودرجات من كشف</span></button>
+      <button class="toolcard" data-existing-source="paper"><strong>صورة ورقة اختبار</strong><span>قراءة الاسم/الكود والدرجة</span></button>
+      <button class="toolcard" data-existing-source="excel"><strong>Excel</strong><span>مطابقة الطلاب وتحديث الدرجات</span></button>
+      <button class="toolcard" data-existing-source="pdf"><strong>PDF</strong><span>استخراج الأسماء والدرجات وتحديثها</span></button>
+    </div>
+    <button class="btn primary mt12" id="existingManualGrades" style="width:100%">إدخال / تعديل يدوي داخل ركّز</button>
+    <button class="btn soft mt8" id="existingResults" style="width:100%">عرض النتائج الحالية</button>`);
+  q('#testMethodsClose',sheet).onclick=closeSheet;
+  qa('[data-existing-source]',sheet).forEach(b=>b.onclick=()=>simulateImport(b.dataset.existingSource,{testId:t.id,name:t.name,max:t.max,type:t.type,date:t.date},true));
+  q('#existingManualGrades',sheet).onclick=()=>openManualGrades({testId:t.id,name:t.name,max:t.max,type:t.type,date:t.date},true);
+  q('#existingResults',sheet).onclick=()=>openTestResults(t.id);
 }
 
 function renderTools(){
@@ -2468,7 +2486,7 @@ function openAddGrades(){
   <div class="grid2 mt12"><div><div class="label">نوع الاختبار</div><select id="testType" class="field"><option value="period">فترة</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div><div><div class="label">الدرجة النهائية</div><input id="testMax" class="field" type="number" min=".25" step=".25" value="20"></div></div>
   <div class="grid2 mt16">
     <button class="btn primary" id="saveTestOnly" style="min-height:44px">حفظ الاختبار</button>
-    <button class="btn soft" id="saveAndManual" style="min-height:44px">حفظ + إدخال الدرجات</button>
+    <button class="btn soft" id="saveAndManual" style="min-height:44px">حفظ + اختيار طريقة الإدخال</button>
   </div>
   <div class="notice mt12">«حفظ الاختبار» ينشئ البطاقة مباشرة بدون أي درجات. تقدر ترجع لها لاحقًا وتضغط «إدخال الدرجات».</div>
   <div class="section-title mt16">أو أدخل الدرجات الآن بطريقة أخرى</div>
@@ -2488,14 +2506,14 @@ function openAddGrades(){
   };
   q('#saveAndManual',sheet).onclick=()=>{
     const m=meta(),test=ensureTestDefinition(m);
-    openManualGrades({testId:test.id,name:test.name,max:test.max,type:test.type,date:test.date},true);
+    openTestGradeMethods(test.id);
   };
   qa('[data-source]',sheet).forEach(b=>b.onclick=()=>{
     const m=meta(),test=ensureTestDefinition(m);
     simulateImport(b.dataset.source,{testId:test.id,name:test.name,max:test.max,type:test.type,date:test.date});
   });
 }
-function simulateImport(source,meta){
+function simulateImport(source,meta,existing=false){
   const srcNames={camera:'التصوير',paper:'ورقة الاختبار',excel:'Excel',pdf:'PDF'};
   sheet.innerHTML=`<div class="h2">نتيجة ${srcNames[source]}</div><div class="small mt8">${meta.name} /${meta.max}</div>
   <div class="notice oknotice mt12">تمت مطابقة 5 طلاب تلقائيًا داخل الفصل.</div>
@@ -2503,11 +2521,20 @@ function simulateImport(source,meta){
   <table class="table mt12"><tr><th>الطالب</th><th>الدرجة</th><th>الحالة</th></tr>
   ${currentStudents().map((s,i)=>`<tr><td>${s.name}</td><td>${i===2?'—':Math.min(meta.max,Math.max(0,meta.max-(i%4)*1.5))}</td><td>${i===2?'⚠ مراجعة':'✓ مطابق'}</td></tr>`).join('')}</table>
   <div class="row mt16"><button class="btn soft" id="backImport">رجوع</button><button class="btn primary" id="acceptImport" style="flex:1">اعتماد المطابق فقط</button></div>`;
-  q('#backImport',sheet).onclick=openAddGrades;
+  q('#backImport',sheet).onclick=()=>meta.testId?openTestGradeMethods(meta.testId):openAddGrades();
   q('#acceptImport',sheet).onclick=()=>{
     const test=ensureTestDefinition(meta);
-    currentStudents().forEach((s,i)=>{if(i!==2)state.events.push({id:'e'+Date.now()+i,testId:test.id,classId:test.classId,studentId:s.id,date:test.date,module:'tests',testType:test.type,label:test.name,value:Math.min(test.max,Math.max(0,test.max-(i%4)*1.5)),max:test.max})});
-    closeSheet();renderFollowup();
+    currentStudents().forEach((s,i)=>{
+      if(i===2)return;
+      const value=Math.min(test.max,Math.max(0,test.max-(i%4)*1.5));
+      const old=state.events.find(e=>e.module==='tests'&&e.testId===test.id&&e.studentId===s.id);
+      if(old){
+        old.value=value;old.max=test.max;old.label=test.name;old.testType=test.type;old.date=test.date;old.classId=test.classId;old.updatedAt=new Date().toISOString();
+      }else{
+        state.events.push({id:'e'+Date.now()+i,testId:test.id,classId:test.classId,studentId:s.id,date:test.date,module:'tests',testType:test.type,label:test.name,value,max:test.max,createdAt:new Date().toISOString()});
+      }
+    });
+    closeSheet();renderFollowup();showToast('تم تحديث درجات «'+test.name+'».','');
   }
 }
 function openManualGrades(meta,existing=false){
