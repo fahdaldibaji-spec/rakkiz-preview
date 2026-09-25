@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.73</title>
+<title>ركّز — موقع تجريبي v0.74</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -535,12 +535,15 @@ const state={
   bulkContext:null,
   lessonTitles:{},
   reportClassId:'c1',
+  noorSchoolProfile:{country:'المملكة العربية السعودية',educationAdmin:'',schoolName:'',schoolLogo:'',source:'noor'},
   reportBranding:{
-    showMinistry:false,ministryLogo:'',ministrySide:'right',
-    showSchoolLogo:false,schoolLogo:'',schoolSide:'left',
-    showCountry:true,country:'المملكة العربية السعودية',
-    showEducationAdmin:false,educationAdmin:'',
-    showSchoolName:false,schoolName:''
+    autoFromNoor:true,
+    showMinistry:true,ministryLogo:'',ministrySide:'center',
+    showSchoolLogo:false,schoolLogo:'',schoolSide:'right',
+    showCountry:true,country:'المملكة العربية السعودية',countrySide:'right',
+    showEducationAdmin:false,educationAdmin:'',educationAdminSide:'right',
+    showSchoolName:false,schoolName:'',schoolNameSide:'right',
+    showOutgoing:true,outgoingNo:''
   },
   reportSignatures:{rightEnabled:true,rightName:'',rightRole:'المعلم',centerEnabled:false,centerName:'',centerRole:'',leftEnabled:true,leftName:'',leftRole:'مدير المدرسة'},
   tempPlanEvidence:[],
@@ -590,6 +593,21 @@ function loadReportPrefs(){
   }catch{}
 }
 loadReportPrefs();loadTeacherWeek();
+function effectiveReportBranding(){
+  const b=state.reportBranding||{},n=state.noorSchoolProfile||{},auto=b.autoFromNoor!==false;
+  const country=(b.country||'').trim()||(auto?(n.country||teacherWeek().country||''):'');
+  const educationAdmin=(b.educationAdmin||'').trim()||(auto?(n.educationAdmin||''):'');
+  const schoolName=(b.schoolName||'').trim()||(auto?(n.schoolName||''):'');
+  const schoolLogo=b.schoolLogo||(auto?n.schoolLogo||'':'');
+  return {
+    ...b,country,educationAdmin,schoolName,schoolLogo,
+    showCountry:!!(b.showCountry||(auto&&country)),
+    showEducationAdmin:!!(b.showEducationAdmin||(auto&&educationAdmin)),
+    showSchoolName:!!(b.showSchoolName||(auto&&schoolName)),
+    showSchoolLogo:!!(b.showSchoolLogo||(auto&&schoolLogo)),
+    showMinistry:b.showMinistry!==false
+  };
+}
 function renderAccount(){
   const nameEl=q('#accountTeacherName');if(nameEl)nameEl.textContent=teacherDisplayName();
   const wk=q('#teacherWeekSummary');
@@ -598,7 +616,7 @@ function renderAccount(){
     wk.textContent=(w.country||'')+(days?' · '+days:'');
   }
   const el=q('#reportSettingsSummary');if(!el)return;
-  const b=state.reportBranding, parts=[];
+  const b=effectiveReportBranding(), parts=[];
   if(b.showMinistry&&b.ministryLogo)parts.push('شعار الوزارة');
   if(b.showSchoolLogo&&b.schoolLogo)parts.push('شعار المدرسة');
   if(b.showSchoolName&&b.schoolName)parts.push(b.schoolName);
@@ -658,17 +676,19 @@ function openTeacherWeekSettings(){
   };
 }
 function openReportSettings(){
-  const b=state.reportBranding,sig=state.reportSignatures;
-  openReportSheet('<div class="row between"><div><div class="h2">إعدادات التقارير والترويسة</div><div class="small mt8">تُستخدم هذه الإعدادات تلقائيًا في كل تقارير ركّز.</div></div><button class="iconbtn" id="rsClose">×</button></div>'
+  const b=state.reportBranding,sig=state.reportSignatures,eff=effectiveReportBranding();
+  openReportSheet('<div class="row between"><div><div class="h2">إعدادات التقارير والترويسة</div><div class="small mt8">تُستخدم تلقائيًا في التقارير، ويمكن لركّز إكمال البيانات من نور عند توفرها.</div></div><button class="iconbtn" id="rsClose">×</button></div>'
+    +'<div class="form-section"><label class="setting-check"><input type="checkbox" id="rsAutoNoor" '+(b.autoFromNoor!==false?'checked':'')+'>استخدام بيانات المدرسة من نور تلقائيًا عند توفرها</label><div class="small mt8">إذا لم تكتب بيانات الترويسة يدويًا، يستخدم ركّز الدولة والإدارة والمدرسة المسحوبة من نور.</div></div>'
     +'<div class="form-section"><div class="form-section-title">الشعارات</div><div class="report-settings-logo-grid">'
-      +'<div class="report-logo-card"><label class="setting-check"><input type="checkbox" id="rsMinistryShow" '+(b.showMinistry?'checked':'')+'>إظهار شعار وزارة التعليم</label><div class="report-logo-preview" id="rsMinistryPreview">'+(b.ministryLogo?'<img src="'+b.ministryLogo+'">':'<span>لم يرفع شعار</span>')+'</div><div class="label mt8">موضع الشعار</div><select class="field" id="rsMinistrySide"><option value="right" '+((b.ministrySide||'right')==='right'?'selected':'')+'>يمين الترويسة</option><option value="left" '+((b.ministrySide||'right')==='left'?'selected':'')+'>يسار الترويسة</option></select><div class="logo-file-row"><label class="btn soft" for="rsMinistryFile">رفع الشعار</label><input id="rsMinistryFile" type="file" accept="image/*" hidden><button class="btn soft" id="rsMinistryClear">مسح</button></div></div>'
-      +'<div class="report-logo-card"><label class="setting-check"><input type="checkbox" id="rsSchoolLogoShow" '+(b.showSchoolLogo?'checked':'')+'>إظهار شعار المدرسة</label><div class="report-logo-preview" id="rsSchoolLogoPreview">'+(b.schoolLogo?'<img src="'+b.schoolLogo+'">':'<span>اختياري</span>')+'</div><div class="label mt8">موضع الشعار</div><select class="field" id="rsSchoolSide"><option value="right" '+((b.schoolSide||'left')==='right'?'selected':'')+'>يمين الترويسة</option><option value="left" '+((b.schoolSide||'left')==='left'?'selected':'')+'>يسار الترويسة</option></select><div class="logo-file-row"><label class="btn soft" for="rsSchoolLogoFile">رفع الشعار</label><input id="rsSchoolLogoFile" type="file" accept="image/*" hidden><button class="btn soft" id="rsSchoolLogoClear">مسح</button></div></div>'
+      +'<div class="report-logo-card"><label class="setting-check"><input type="checkbox" id="rsMinistryShow" '+(b.showMinistry?'checked':'')+'>إظهار شعار وزارة التعليم</label><div class="report-logo-preview" id="rsMinistryPreview">'+(b.ministryLogo?'<img src="'+b.ministryLogo+'">':'<span>لم يرفع شعار</span>')+'</div><div class="label mt8">موضع الشعار</div><select class="field" id="rsMinistrySide"><option value="right" '+((b.ministrySide||'center')==='right'?'selected':'')+'>يمين الترويسة</option><option value="center" '+((b.ministrySide||'center')==='center'?'selected':'')+'>وسط الترويسة</option><option value="left" '+((b.ministrySide||'center')==='left'?'selected':'')+'>يسار الترويسة</option></select><div class="logo-file-row"><label class="btn soft" for="rsMinistryFile">رفع الشعار</label><input id="rsMinistryFile" type="file" accept="image/*" hidden><button class="btn soft" id="rsMinistryClear">مسح</button></div></div>'
+      +'<div class="report-logo-card"><label class="setting-check"><input type="checkbox" id="rsSchoolLogoShow" '+(b.showSchoolLogo?'checked':'')+'>إظهار شعار المدرسة</label><div class="report-logo-preview" id="rsSchoolLogoPreview">'+(b.schoolLogo?'<img src="'+b.schoolLogo+'">':'<span>اختياري</span>')+'</div><div class="label mt8">موضع الشعار</div><select class="field" id="rsSchoolSide"><option value="right" '+((b.schoolSide||'right')==='right'?'selected':'')+'>يمين الترويسة</option><option value="center" '+((b.schoolSide||'right')==='center'?'selected':'')+'>وسط الترويسة</option><option value="left" '+((b.schoolSide||'right')==='left'?'selected':'')+'>يسار الترويسة</option></select><div class="logo-file-row"><label class="btn soft" for="rsSchoolLogoFile">رفع الشعار</label><input id="rsSchoolLogoFile" type="file" accept="image/*" hidden><button class="btn soft" id="rsSchoolLogoClear">مسح</button></div></div>'
     +'</div></div>'
     +'<div class="form-section"><div class="form-section-title">بيانات الترويسة</div>'
-      +'<label class="setting-check"><input type="checkbox" id="rsCountryShow" '+(b.showCountry?'checked':'')+'>إظهار اسم الدولة</label><input class="field mt8" id="rsCountry" value="'+(b.country||'')+'" placeholder="المملكة العربية السعودية">'
-      +'<label class="setting-check mt12"><input type="checkbox" id="rsAdminShow" '+(b.showEducationAdmin?'checked':'')+'>إظهار إدارة التعليم</label><input class="field mt8" id="rsAdmin" value="'+(b.educationAdmin||'')+'" placeholder="الإدارة العامة للتعليم بـ...">'
-      +'<label class="setting-check mt12"><input type="checkbox" id="rsSchoolShow" '+(b.showSchoolName?'checked':'')+'>إظهار اسم المدرسة</label><input class="field mt8" id="rsSchool" value="'+(b.schoolName||'')+'" placeholder="اسم المدرسة">'
-      +'<div class="notice oknotice mt12"><strong>هوية ركّز ثابتة</strong><div class="small mt8">شعار ركّز يظهر تلقائيًا في جميع التقارير ولا يحتاج إعدادًا.</div></div>'
+      +'<label class="setting-check"><input type="checkbox" id="rsCountryShow" '+(b.showCountry?'checked':'')+'>إظهار اسم الدولة</label><div class="grid2 mt8"><input class="field" id="rsCountry" value="'+(b.country||'')+'" placeholder="'+(eff.country||'المملكة العربية السعودية')+'"><select class="field" id="rsCountrySide"><option value="right" '+((b.countrySide||'right')==='right'?'selected':'')+'>يمين</option><option value="center" '+((b.countrySide||'right')==='center'?'selected':'')+'>وسط</option><option value="left" '+((b.countrySide||'right')==='left'?'selected':'')+'>يسار</option></select></div>'
+      +'<label class="setting-check mt12"><input type="checkbox" id="rsAdminShow" '+(b.showEducationAdmin?'checked':'')+'>إظهار إدارة التعليم</label><div class="grid2 mt8"><input class="field" id="rsAdmin" value="'+(b.educationAdmin||'')+'" placeholder="'+(eff.educationAdmin||'الإدارة العامة للتعليم بـ...')+'"><select class="field" id="rsAdminSide"><option value="right" '+((b.educationAdminSide||'right')==='right'?'selected':'')+'>يمين</option><option value="center" '+((b.educationAdminSide||'right')==='center'?'selected':'')+'>وسط</option><option value="left" '+((b.educationAdminSide||'right')==='left'?'selected':'')+'>يسار</option></select></div>'
+      +'<label class="setting-check mt12"><input type="checkbox" id="rsSchoolShow" '+(b.showSchoolName?'checked':'')+'>إظهار اسم المدرسة</label><div class="grid2 mt8"><input class="field" id="rsSchool" value="'+(b.schoolName||'')+'" placeholder="'+(eff.schoolName||'اسم المدرسة')+'"><select class="field" id="rsSchoolNameSide"><option value="right" '+((b.schoolNameSide||'right')==='right'?'selected':'')+'>يمين</option><option value="center" '+((b.schoolNameSide||'right')==='center'?'selected':'')+'>وسط</option><option value="left" '+((b.schoolNameSide||'right')==='left'?'selected':'')+'>يسار</option></select></div>'
+      +'<label class="setting-check mt12"><input type="checkbox" id="rsOutgoingShow" '+(b.showOutgoing!==false?'checked':'')+'>إظهار خانة الصادر</label><input class="field mt8" id="rsOutgoing" value="'+(b.outgoingNo||'')+'" placeholder="رقم الصادر — اختياري">'
+      +'<div class="notice oknotice mt12"><strong>هوية ركّز في الأسفل فقط</strong><div class="small mt8">لا يظهر اسم أو شعار ركّز في الترويسة الرسمية أعلى التقرير.</div></div>'
     +'</div>'
     +'<div class="form-section"><div class="form-section-title">التوقيعات الافتراضية</div><div class="small">اضبطها مرة واحدة. يمكن تغييرها مؤقتًا قبل طباعة تقرير محدد.</div><div class="settings-signatures mt8">'
       +'<div class="settings-signature-card"><label class="setting-check"><input type="checkbox" id="rsRightEnabled" '+(sig.rightEnabled?'checked':'')+'>توقيع يمين</label><div class="grid2 mt8"><input class="field" id="rsRightRole" value="'+(sig.rightRole||'')+'" placeholder="الصفة"><input class="field" id="rsRightName" value="'+(sig.rightName||'')+'" placeholder="الاسم"></div></div>'
@@ -699,11 +719,13 @@ function openReportSettings(){
   q('#rsSave',sheet).onclick=()=>{
     state.reportBranding={
       ...state.reportBranding,
+      autoFromNoor:q('#rsAutoNoor',sheet).checked,
       showMinistry:q('#rsMinistryShow',sheet).checked,ministrySide:q('#rsMinistrySide',sheet).value,
       showSchoolLogo:q('#rsSchoolLogoShow',sheet).checked,schoolSide:q('#rsSchoolSide',sheet).value,
-      showCountry:q('#rsCountryShow',sheet).checked,country:q('#rsCountry',sheet).value.trim(),
-      showEducationAdmin:q('#rsAdminShow',sheet).checked,educationAdmin:q('#rsAdmin',sheet).value.trim(),
-      showSchoolName:q('#rsSchoolShow',sheet).checked,schoolName:q('#rsSchool',sheet).value.trim()
+      showCountry:q('#rsCountryShow',sheet).checked,country:q('#rsCountry',sheet).value.trim(),countrySide:q('#rsCountrySide',sheet).value,
+      showEducationAdmin:q('#rsAdminShow',sheet).checked,educationAdmin:q('#rsAdmin',sheet).value.trim(),educationAdminSide:q('#rsAdminSide',sheet).value,
+      showSchoolName:q('#rsSchoolShow',sheet).checked,schoolName:q('#rsSchool',sheet).value.trim(),schoolNameSide:q('#rsSchoolNameSide',sheet).value,
+      showOutgoing:q('#rsOutgoingShow',sheet).checked,outgoingNo:q('#rsOutgoing',sheet).value.trim()
     };
     state.reportSignatures={
       rightEnabled:q('#rsRightEnabled',sheet).checked,rightRole:q('#rsRightRole',sheet).value.trim(),rightName:q('#rsRightName',sheet).value.trim(),
