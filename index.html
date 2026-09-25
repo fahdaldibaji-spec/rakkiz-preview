@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.54</title>
+<title>ركّز — موقع تجريبي v0.55</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1659,7 +1659,7 @@ function renderReports(){
     +'<button class="report-lib-card" data-external-report="weekly"><strong>متابعة أسبوعية</strong><span>أبرز ما حدث خلال الأسبوع وملاحظات المتابعة</span></button>'
     +'<button class="report-lib-card" data-external-report="behavior"><strong>سلوك وانضباط</strong><span>ملاحظات السلوك والحالات الإيجابية والسلبية</span></button>'
     +'<button class="report-lib-card" data-external-report="parent"><strong>تواصل ولي أمر</strong><span>نموذج مختصر يوثق سبب التواصل وما تم</span></button>'
-    +'<button class="report-lib-card featured" id="generalGradeExport"><strong>تصدير الدرجات</strong><span>اختبار محدد أو الشهرية أو النهائية أو جميع الدرجات · PDF / Excel / نور</span></button>'
+    +'<button class="report-lib-card featured" id="generalGradeExport"><strong>تصدير الدرجات</strong><span>اختبار محدد أو الفترة أو النهائية أو جميع الدرجات · PDF / Excel / نور</span></button>'
     +'</div></div>'
     +'<div class="report-group"><div class="report-group-head"><div><strong>خطط وإجراءات</strong><span>نماذج جاهزة قابلة للتعديل والطباعة</span></div></div><div class="report-library-grid">'
     +'<button class="report-lib-card featured" data-external-report="remedial"><strong>خطة علاجية ذكية</strong><span>تقترح التعثر والهدف والإجراء وإعادة القياس</span></button>'
@@ -1737,10 +1737,10 @@ function openExternalReportByType(type,studentId){
 
 
 function inferredTestType(e){
-  if(e?.testType)return e.testType;
+  if(e?.testType)return e.testType==='monthly'?'period':e.testType;
   const n=String(e?.label||'');
   if(n.includes('نهائي'))return 'final';
-  if(n.includes('شهر'))return 'monthly';
+  if(n.includes('فترة')||n.includes('شهر'))return 'period';
   if(n.includes('قصير'))return 'short';
   return 'other';
 }
@@ -1757,7 +1757,7 @@ function gradeExportData({studentId=null,classId,scope='all',testKey=''}) {
   const cls=state.classes.find(c=>c.id===classId);
   const allTests=gradeTestCatalog(classId);
   let tests=allTests;
-  if(scope==='monthly')tests=allTests.filter(t=>t.type==='monthly');
+  if(scope==='period')tests=allTests.filter(t=>t.type==='period');
   if(scope==='final')tests=allTests.filter(t=>t.type==='final');
   if(scope==='specific')tests=allTests.filter(t=>t.key===testKey);
   const students=studentId?state.students.filter(st=>st.id===studentId):state.students.filter(st=>st.classId===classId);
@@ -1779,7 +1779,7 @@ function gradeTableHtml(data){
   return '<table><thead>'+head+'</thead><tbody>'+rows+'</tbody></table>';
 }
 function gradeScopeLabel(scope){
-  return ({all:'جميع الدرجات',monthly:'الاختبارات الشهرية',final:'الاختبارات النهائية',specific:'اختبار محدد'})[scope]||'الدرجات';
+  return ({all:'جميع الدرجات',period:'اختبارات الفترة',final:'الاختبارات النهائية',specific:'اختبار محدد'})[scope]||'الدرجات';
 }
 function downloadGradeExcel(data){
   if(!data.tests.length){showToast('لا توجد درجات مطابقة للاختيار.');return}
@@ -1808,7 +1808,7 @@ function openGradeExport(studentId){
   let classId=st?.classId||state.reportClassId||state.classes[0]?.id;
   openReportSheet('<div class="row between"><div><div class="h2">تصدير الدرجات</div><div class="small">'+(st?'درجات '+htmlEsc(st.name):'كشف درجات الطلاب')+'</div></div><button class="iconbtn" id="gradeExportClose">×</button></div>'
     +(st?'':'<div class="label mt16">الفصل</div><select class="field" id="geClass">'+state.classes.map(c=>'<option value="'+c.id+'" '+(c.id===classId?'selected':'')+'>'+htmlEsc(c.grade+' — '+c.name)+'</option>').join('')+'</select>')
-    +'<div class="label mt12">نوع التصدير</div><select class="field" id="geScope"><option value="specific">اختبار محدد</option><option value="monthly">جميع الاختبارات الشهرية</option><option value="final">جميع الاختبارات النهائية</option><option value="all">كل الدرجات</option></select>'
+    +'<div class="label mt12">نوع التصدير</div><select class="field" id="geScope"><option value="specific">اختبار محدد</option><option value="period">جميع اختبارات الفترة</option><option value="final">جميع الاختبارات النهائية</option><option value="all">كل الدرجات</option></select>'
     +'<div id="geSpecificWrap"><div class="label mt12">الاختبار</div><select class="field" id="geTest"></select></div>'
     +'<div class="panel mt12" id="geSummary"></div>'
     +'<div class="grid2 mt12"><button class="btn primary" id="gePdf">PDF</button><button class="btn soft" id="geExcel">Excel</button></div>'
@@ -1819,7 +1819,7 @@ function openGradeExport(studentId){
   function fillTests(){
     classId=currentClass();state.reportClassId=classId;
     const tests=gradeTestCatalog(classId);
-    testEl.innerHTML=tests.length?tests.map(t=>'<option value="'+htmlEsc(t.key)+'">'+htmlEsc(t.label)+' /'+htmlEsc(t.max)+' · '+({monthly:'شهري',final:'نهائي',short:'قصير',other:'أخرى'}[t.type]||t.type)+'</option>').join(''):'<option value="">لا توجد اختبارات مسجلة</option>';
+    testEl.innerHTML=tests.length?tests.map(t=>'<option value="'+htmlEsc(t.key)+'">'+htmlEsc(t.label)+' /'+htmlEsc(t.max)+' · '+({period:'فترة',final:'نهائي',short:'قصير',other:'أخرى'}[t.type]||t.type)+'</option>').join(''):'<option value="">لا توجد اختبارات مسجلة</option>';
     refresh();
   }
   function currentData(){
@@ -2254,7 +2254,7 @@ function openManageItems(){
 function openAddGrades(){
   openSheet(`<div class="h2">إدخال درجات ذكي</div><div class="small mt8">حدد الاختبار ودرجته، ثم اختر الطريقة الأنسب لك.</div>
   <div class="label mt16">اسم الاختبار أو التقييم</div><input id="testName" class="field" value="اختبار قصير 1">
-  <div class="grid2 mt12"><div><div class="label">نوع الاختبار</div><select id="testType" class="field"><option value="monthly">شهري</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div><div><div class="label">الدرجة النهائية</div><input id="testMax" class="field" type="number" min=".25" step=".25" value="20"></div></div>
+  <div class="grid2 mt12"><div><div class="label">نوع الاختبار</div><select id="testType" class="field"><option value="period">فترة</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div><div><div class="label">الدرجة النهائية</div><input id="testMax" class="field" type="number" min=".25" step=".25" value="20"></div></div>
   <div class="section-title mt16">طريقة إدخال الدرجات</div>
   <div class="grid2">
     <button class="toolcard" data-source="camera"><strong>تصوير كشف</strong><span>أسماء ودرجات مطبوعة أو مكتوبة</span></button>
@@ -2296,7 +2296,7 @@ function openManualGrades(meta){
 }
 function openManualGradeOne(id){
   const s=state.students.find(x=>x.id===id);
-  openSheet(`<div class="h2">إدخال درجة — ${s.name}</div><div class="grid2 mt12"><div><div class="label">اسم الاختبار</div><input class="field" id="oneName" value="اختبار قصير"></div><div><div class="label">نوع الاختبار</div><select class="field" id="oneType"><option value="monthly">شهري</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div></div><div class="label mt12">الدرجة النهائية</div><input class="field" id="oneMax" type="number" value="20"><div class="label mt12">درجة الطالب</div><input class="field" id="oneVal" type="number" step=".25"><button class="btn primary mt16" id="saveOne" style="width:100%">حفظ</button>`);
+  openSheet(`<div class="h2">إدخال درجة — ${s.name}</div><div class="grid2 mt12"><div><div class="label">اسم الاختبار</div><input class="field" id="oneName" value="اختبار قصير"></div><div><div class="label">نوع الاختبار</div><select class="field" id="oneType"><option value="period">فترة</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div></div><div class="label mt12">الدرجة النهائية</div><input class="field" id="oneMax" type="number" value="20"><div class="label mt12">درجة الطالب</div><input class="field" id="oneVal" type="number" step=".25"><button class="btn primary mt16" id="saveOne" style="width:100%">حفظ</button>`);
   q('#saveOne',sheet).onclick=()=>{const max=Number(q('#oneMax',sheet).value),val=Number(q('#oneVal',sheet).value);if(!Number.isFinite(max)||!Number.isFinite(val)||val<0||val>max)return;state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'tests',testType:q('#oneType',sheet).value||'other',label:q('#oneName',sheet).value||'اختبار',value:val,max});closeSheet();renderStudents()}
 }
 
