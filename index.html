@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.82</title>
+<title>ركّز — موقع تجريبي v0.83</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -486,8 +486,10 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
     </div>
   </div>
 </div>
+<script src="runtime-config.js"></script>
+<script src="backend-adapter.js"></script>
 <script>
-(()=>{
+(async()=>{
 const app=document.getElementById('app');
 const overlay=document.getElementById('overlay');
 const sheet=document.getElementById('sheetContent');
@@ -592,14 +594,18 @@ const state={
 
 function q(s,r=app){return r.querySelector(s)}
 function qa(s,r=app){return [...r.querySelectorAll(s)]}
+const portableStore=window.RakkizBackend?.store;
+function appStoreGet(key){return portableStore?.get(key)??localStorage.getItem(key)}
+function appStoreSet(key,value){if(portableStore)portableStore.set(key,value);else localStorage.setItem(key,value)}
+function appStoreRemove(key){if(portableStore)portableStore.remove(key);else localStorage.removeItem(key)}
 function saveReportPrefs(){
-  try{localStorage.setItem('rakkiz_report_prefs_v1',JSON.stringify({configured:!!state.reportSettingsConfigured,branding:state.reportBranding,signatures:state.reportSignatures}))}catch{}
+  try{appStoreSet('rakkiz_report_prefs_v1',JSON.stringify({configured:!!state.reportSettingsConfigured,branding:state.reportBranding,signatures:state.reportSignatures}))}catch{}
 }
-function saveTeacherWeek(){try{localStorage.setItem('rakkiz_teacher_week_v1',JSON.stringify(state.teacherWeek))}catch{}}
-function saveAcademicTerms(){try{localStorage.setItem('rakkiz_academic_terms_v1',JSON.stringify(state.academicTerms))}catch{}}
+function saveTeacherWeek(){try{appStoreSet('rakkiz_teacher_week_v1',JSON.stringify(state.teacherWeek))}catch{}}
+function saveAcademicTerms(){try{appStoreSet('rakkiz_academic_terms_v1',JSON.stringify(state.academicTerms))}catch{}}
 function loadAcademicTerms(){
   try{
-    const raw=localStorage.getItem('rakkiz_academic_terms_v1'),x=JSON.parse(raw||'null');
+    const raw=appStoreGet('rakkiz_academic_terms_v1'),x=JSON.parse(raw||'null');
     if(x){
       state.academicTerms={...state.academicTerms,...x,archives:Array.isArray(x.archives)?x.archives:[]};
       if(typeof x.configured!=='boolean')state.academicTerms.configured=true;
@@ -608,18 +614,19 @@ function loadAcademicTerms(){
 }
 function loadTeacherWeek(){
   try{
-    const x=JSON.parse(localStorage.getItem('rakkiz_teacher_week_v1')||'null');
+    const x=JSON.parse(appStoreGet('rakkiz_teacher_week_v1')||'null');
     if(x)state.teacherWeek={...state.teacherWeek,...x,workdays:Array.isArray(x.workdays)?x.workdays:state.teacherWeek.workdays};
   }catch{}
 }
 function loadReportPrefs(){
   try{
-    const raw=localStorage.getItem('rakkiz_report_prefs_v1'),x=JSON.parse(raw||'null');
+    const raw=appStoreGet('rakkiz_report_prefs_v1'),x=JSON.parse(raw||'null');
     if(x?.branding)state.reportBranding={...state.reportBranding,...x.branding};
     if(x?.signatures)state.reportSignatures={...state.reportSignatures,...x.signatures};
     if(x)state.reportSettingsConfigured=typeof x.configured==='boolean'?x.configured:true;
   }catch{}
 }
+await window.RakkizBackend?.ready?.(['rakkiz_report_prefs_v1','rakkiz_teacher_week_v1','rakkiz_academic_terms_v1','rakkiz_schedule_v1']);
 loadReportPrefs();loadTeacherWeek();loadAcademicTerms();
 function effectiveReportBranding(){
   const b=state.reportBranding||{},n=state.noorSchoolProfile||{},auto=b.autoFromNoor!==false;
@@ -1065,8 +1072,8 @@ const periodNames={1:'الأولى',2:'الثانية',3:'الثالثة',4:'ا�
 function periodLabel(n){return n?'الحصة '+(periodNames[n]||n):'الحصة'}
 function periodOptions(selected=1){return Object.entries(periodNames).map(([n,label])=>`<option value="${n}" ${Number(selected)===Number(n)?'selected':''}>الحصة ${label}</option>`).join('')}
 function minutesOf(t){const [h,m]=t.split(':').map(Number);return h*60+m}
-function saveSchedule(){localStorage.setItem('rakkiz_schedule_v1',JSON.stringify({schedule:state.schedule,settings:state.scheduleSettings}))}
-function loadSchedule(){try{const x=JSON.parse(localStorage.getItem('rakkiz_schedule_v1')||'null');if(x?.schedule)state.schedule=x.schedule;if(x?.settings)state.scheduleSettings={...state.scheduleSettings,...x.settings}}catch{}}
+function saveSchedule(){appStoreSet('rakkiz_schedule_v1',JSON.stringify({schedule:state.schedule,settings:state.scheduleSettings}))}
+function loadSchedule(){try{const x=JSON.parse(appStoreGet('rakkiz_schedule_v1')||'null');if(x?.schedule)state.schedule=x.schedule;if(x?.settings)state.scheduleSettings={...state.scheduleSettings,...x.settings}}catch{}}
 function lessonContext(now=new Date()){
   const day=now.getDay(), cur=now.getHours()*60+now.getMinutes();
   const today=state.schedule.filter(x=>x.day===day).sort((a,b)=>minutesOf(a.start)-minutesOf(b.start));
