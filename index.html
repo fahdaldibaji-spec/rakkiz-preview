@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.74</title>
+<title>ركّز — موقع تجريبي v0.75</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -439,6 +439,9 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
         <div class="row between"><div><strong>أيام الدوام والويكند</strong><div class="small mt8" id="teacherWeekSummary">اضبطها مرة واحدة حسب مدرستك.</div></div><button class="btn brown" id="teacherWeekBtn" style="min-height:38px">إدارة</button></div>
       </div>
       <div class="card pad mt12">
+        <div class="row between"><div><strong>الفصول الدراسية</strong><div class="small mt8" id="academicTermSummary">الفصل الأول</div></div><button class="btn brown" id="academicTermBtn" style="min-height:38px">إدارة</button></div>
+      </div>
+      <div class="card pad mt12">
         <div class="row between">
           <div><strong>التقارير والترويسة</strong><div class="small mt8" id="reportSettingsSummary">الشعارات · بيانات المدرسة · التوقيعات</div></div>
           <button class="btn brown" id="reportSettingsBtn" style="min-height:38px">إدارة</button>
@@ -526,6 +529,7 @@ const state={
   currentUser:{id:'teacher-demo',name:'أحمد',source:'account'},
   scheduleSettings:{notify:false,before:5},
   teacherWeek:{country:'المملكة العربية السعودية',weekStartsOn:0,workdays:[0,1,2,3,4]},
+  academicTerms:{count:2,current:1,startedAt:todayIsoRiyadh(),archives:[]},
   attendance:{},
   attendanceGrade:{max:10,mode:'decrease',present:0,absent:-1,late:-0.5,excused:0},
   events:[],
@@ -579,6 +583,13 @@ function saveReportPrefs(){
   try{localStorage.setItem('rakkiz_report_prefs_v1',JSON.stringify({branding:state.reportBranding,signatures:state.reportSignatures}))}catch{}
 }
 function saveTeacherWeek(){try{localStorage.setItem('rakkiz_teacher_week_v1',JSON.stringify(state.teacherWeek))}catch{}}
+function saveAcademicTerms(){try{localStorage.setItem('rakkiz_academic_terms_v1',JSON.stringify(state.academicTerms))}catch{}}
+function loadAcademicTerms(){
+  try{
+    const x=JSON.parse(localStorage.getItem('rakkiz_academic_terms_v1')||'null');
+    if(x)state.academicTerms={...state.academicTerms,...x,archives:Array.isArray(x.archives)?x.archives:[]};
+  }catch{}
+}
 function loadTeacherWeek(){
   try{
     const x=JSON.parse(localStorage.getItem('rakkiz_teacher_week_v1')||'null');
@@ -592,7 +603,7 @@ function loadReportPrefs(){
     if(x?.signatures)state.reportSignatures={...state.reportSignatures,...x.signatures};
   }catch{}
 }
-loadReportPrefs();loadTeacherWeek();
+loadReportPrefs();loadTeacherWeek();loadAcademicTerms();
 function effectiveReportBranding(){
   const b=state.reportBranding||{},n=state.noorSchoolProfile||{},auto=b.autoFromNoor!==false;
   const country=(b.country||'').trim()||(auto?(n.country||teacherWeek().country||''):'');
@@ -614,6 +625,11 @@ function renderAccount(){
   if(wk){
     const w=teacherWeek(),days=(w.workdays||[]).map(d=>dayNames[d]).join('، ');
     wk.textContent=(w.country||'')+(days?' · '+days:'');
+  }
+  const termEl=q('#academicTermSummary');
+  if(termEl){
+    const t=academicTerms();
+    termEl.textContent=termName(t.current)+' · '+t.count+' فصول · '+t.archives.length+' مؤرشف';
   }
   const el=q('#reportSettingsSummary');if(!el)return;
   const b=effectiveReportBranding(), parts=[];
@@ -653,6 +669,94 @@ function addTempEvidenceFiles(files){
   const remaining=Math.max(0,4-state.tempPlanEvidence.length);
   picked.slice(0,remaining).forEach(f=>state.tempPlanEvidence.push(URL.createObjectURL(f)));
   if(picked.length>remaining)showToast('الحد الأقصى 4 صور للشواهد.');
+}
+function academicTerms(){
+  state.academicTerms=state.academicTerms||{count:2,current:1,startedAt:todayIsoRiyadh(),archives:[]};
+  state.academicTerms.count=Math.max(2,Math.min(4,Number(state.academicTerms.count)||2));
+  state.academicTerms.current=Math.max(1,Math.min(state.academicTerms.count,Number(state.academicTerms.current)||1));
+  state.academicTerms.archives=Array.isArray(state.academicTerms.archives)?state.academicTerms.archives:[];
+  return state.academicTerms;
+}
+function termName(n){
+  return ({1:'الفصل الأول',2:'الفصل الثاني',3:'الفصل الثالث',4:'الفصل الرابع'})[Number(n)]||('الفصل '+n);
+}
+function cloneJson(v){return JSON.parse(JSON.stringify(v))}
+function termArchiveSnapshot(termNo){
+  const customCards=(state.items.custom||[]).map(x=>({id:x.id,name:x.name,usage:x.usage,cards:cloneJson(x.cards||[])}));
+  return {
+    id:'term-archive-'+Date.now(),
+    term:termNo,
+    name:termName(termNo),
+    startedAt:academicTerms().startedAt||'',
+    archivedAt:todayIsoRiyadh(),
+    attendance:cloneJson(state.attendance||{}),
+    events:cloneJson(state.events||[]),
+    tests:cloneJson(state.tests||[]),
+    homeworks:cloneJson(state.homeworks||[]),
+    lessonTitles:cloneJson(state.lessonTitles||{}),
+    customCards,
+    stats:{
+      events:(state.events||[]).length,
+      tests:(state.tests||[]).length,
+      homeworks:(state.homeworks||[]).length,
+      attendance:Object.keys(state.attendance||{}).length
+    }
+  };
+}
+function startFreshTermData(){
+  state.attendance={};
+  state.events=[];
+  state.tests=[];
+  state.homeworks=[];
+  state.lessonTitles={};
+  state.evalFollow={};
+  state.bulkContext=null;
+  (state.items.custom||[]).forEach(x=>{if(x.usage==='cards')x.cards=[]});
+  state.module='attendance';
+  state.attFilter='all';
+  state.selectedMain=null;state.selectedSub=null;
+}
+function archiveAndStartNextTerm(){
+  const t=academicTerms();
+  if(t.current>=t.count){showToast('أنت في آخر فصل دراسي محدد.');return}
+  t.archives.push(termArchiveSnapshot(t.current));
+  t.current+=1;
+  t.startedAt=todayIsoRiyadh();
+  startFreshTermData();
+  saveAcademicTerms();
+  closeSheet();renderAccount();renderFollowup();showToast('تمت أرشفة '+termName(t.current-1)+' وبدأ '+termName(t.current)+'.','');
+}
+function openArchivedTermSummary(archiveId){
+  const a=academicTerms().archives.find(x=>x.id===archiveId);if(!a)return;
+  const s=a.stats||{};
+  openSheet('<div class="row between"><div><div class="h2">'+htmlEsc(a.name)+'</div><div class="small">أرشيف للعرض والتقارير · '+htmlEsc(dualDateText(a.archivedAt))+'</div></div><button class="iconbtn" id="archiveSummaryClose">×</button></div>'
+    +'<div class="grid2 mt16"><div class="panel"><div class="small">الأحداث والسجلات</div><div class="h2">'+Number(s.events||0)+'</div></div><div class="panel"><div class="small">الاختبارات</div><div class="h2">'+Number(s.tests||0)+'</div></div><div class="panel"><div class="small">الواجبات</div><div class="h2">'+Number(s.homeworks||0)+'</div></div><div class="panel"><div class="small">سجلات الحضور</div><div class="h2">'+Number(s.attendance||0)+'</div></div></div>'
+    +'<div class="notice mt12">الأرشيف محفوظ كما كان عند إنهاء الفصل، ولا يختلط ببيانات الفصل الحالي.</div>');
+  q('#archiveSummaryClose',sheet).onclick=openAcademicTermSettings;
+}
+function openAcademicTermSettings(){
+  const t=academicTerms();
+  openSheet('<div class="row between"><div><div class="h2">الفصول الدراسية</div><div class="small mt8">حدد نظام السنة مرة واحدة، ثم أرشف الفصل عند الانتقال للفصل التالي.</div></div><button class="iconbtn" id="termClose">×</button></div>'
+    +'<div class="label mt16">عدد الفصول في السنة</div><div class="chips" id="termCountChoices">'+[2,3,4].map(n=>'<button class="chip '+(t.count===n?'active':'')+'" data-term-count="'+n+'">'+n+' فصول</button>').join('')+'</div>'
+    +'<div class="panel mt16"><div class="row between"><div><div class="small">الفصل الحالي</div><div class="h2">'+termName(t.current)+'</div></div><span class="badge">'+(t.startedAt?dualDateText(t.startedAt):'')+'</span></div></div>'
+    +(t.current<t.count?'<button class="btn primary mt12" id="nextAcademicTerm" style="width:100%">أرشفة '+termName(t.current)+' والبدء في '+termName(t.current+1)+'</button>':'<div class="notice mt12">هذا آخر فصل دراسي في السنة الحالية.</div>')
+    +(t.archives.length?'<div class="section-title mt16">أرشيف الفصول</div><div class="schedule-list">'+t.archives.slice().reverse().map(a=>'<button class="schedule-row" data-open-term-archive="'+a.id+'"><div class="row between"><div><strong>'+htmlEsc(a.name)+'</strong><div class="small">'+htmlEsc(dualDateText(a.archivedAt))+'</div></div><span class="badge">مؤرشف</span></div></button>').join('')+'</div>':'')
+  );
+  q('#termClose',sheet).onclick=closeSheet;
+  qa('[data-term-count]',sheet).forEach(btn=>btn.onclick=()=>{
+    const next=Number(btn.dataset.termCount);
+    if(next<t.current){showToast('لا يمكن اختيار عدد فصول أقل من الفصل الحالي.');return}
+    t.count=next;saveAcademicTerms();openAcademicTermSettings();
+  });
+  const next=q('#nextAcademicTerm',sheet);
+  if(next)next.onclick=()=>openSheet('<div class="h2">تأكيد الانتقال</div><div class="notice mt12">هل تريد أرشفة '+termName(t.current)+' والبدء في '+termName(t.current+1)+'؟<br>سيبقى الفصل السابق محفوظًا للرجوع والتقارير، ويبدأ الفصل الجديد بسجلات يومية جديدة.</div><div class="row mt16"><button class="btn soft" id="cancelTermTransition">إلغاء</button><button class="btn primary" id="confirmTermTransition" style="flex:1">نعم، أرشف وابدأ</button></div>');
+  if(next)next.onclick=()=>{
+    const from=t.current,to=t.current+1;
+    openSheet('<div class="h2">تأكيد الانتقال</div><div class="notice mt12">هل تريد أرشفة '+termName(from)+' والبدء في '+termName(to)+'؟<br>سيبقى الفصل السابق محفوظًا للرجوع والتقارير، ويبدأ الفصل الجديد بسجلات جديدة.</div><div class="row mt16"><button class="btn soft" id="cancelTermTransition">إلغاء</button><button class="btn primary" id="confirmTermTransition" style="flex:1">نعم، أرشف وابدأ</button></div>');
+    q('#cancelTermTransition',sheet).onclick=openAcademicTermSettings;
+    q('#confirmTermTransition',sheet).onclick=archiveAndStartNextTerm;
+  };
+  qa('[data-open-term-archive]',sheet).forEach(btn=>btn.onclick=()=>openArchivedTermSummary(btn.dataset.openTermArchive));
 }
 function openTeacherWeekSettings(){
   const w=teacherWeek();
@@ -1050,7 +1154,7 @@ function showView(v){
 }
 qa('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
 qa('[data-go]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.go)));
-q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#teacherWeekBtn').addEventListener('click',openTeacherWeekSettings);q('#reportSettingsBtn').addEventListener('click',openReportSettings);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
+q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#teacherWeekBtn').addEventListener('click',openTeacherWeekSettings);q('#academicTermBtn').addEventListener('click',openAcademicTermSettings);q('#reportSettingsBtn').addEventListener('click',openReportSettings);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
 
 const headerBack=q('#headerBack');
 let backDrag=null,backLongPressTimer=null,suppressBackClick=false;
@@ -2224,7 +2328,7 @@ function openLessonTitleEditor(){
 }
 function renderFollowup(){
   const c=state.classes.find(x=>x.id===state.classId);
-  q('#followupClassTitle').textContent=c?`${classSubject(c.id)} · ${c.grade} — ${c.name}`:'المادة والفصل';
+  q('#followupClassTitle').textContent=c?`${classSubject(c.id)} · ${c.grade} — ${c.name} · ${termName(academicTerms().current)}`:'المادة والفصل';
   q('#lessonTitleText').textContent=getLessonTitle()||'إضافة اسم الدرس';
   if(attendanceSessionReady())ensureAttendanceDay();renderDate();renderModuleTabs();renderTools();renderStudents()
 }
