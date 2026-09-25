@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.43</title>
+<title>ركّز — موقع تجريبي v0.44</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1292,11 +1292,13 @@ function openStudentReports(id){
     +'<button class="student-report-card" data-report-type="detailed"><strong>تقرير تفصيلي</strong><span>الأحداث والتقييمات والمتابعات</span></button>'
     +'<button class="student-report-card" data-report-type="attendance"><strong>الحضور</strong><span>الحضور والغياب والتأخر والاستئذان</span></button>'
     +'<button class="student-report-card" data-report-type="tests"><strong>الاختبارات</strong><span>الدرجات والنسب ومتوسط الأداء</span></button>'
+    +'<button class="student-report-card" id="studentGradeExport"><strong>تصدير الدرجات</strong><span>PDF أو Excel لدرجات الطالب</span></button>'
     +'<button class="student-report-card primary" id="studentRemedialPlan"><strong>خطة ذكية</strong><span>علاجية، دعم، تحسين، إثرائية أو متابعة</span></button>'
     +'</div>');
   q('#reportClose',sheet).onclick=closeSheet;
   qa('[data-report-type]',sheet).forEach(btn=>btn.onclick=()=>openReportPreview(id,btn.dataset.reportType));
   q('#studentRemedialPlan',sheet).onclick=()=>openRemedialPlan(id);
+  q('#studentGradeExport',sheet).onclick=()=>openGradeExport(id);
 }
 function openReportPreview(id,type){
   const st=state.students.find(x=>x.id===id), c=state.classes.find(x=>x.id===st?.classId);if(!st)return;
@@ -1405,6 +1407,7 @@ function renderReports(){
     +'<button class="report-lib-card" data-external-report="weekly"><strong>متابعة أسبوعية</strong><span>أبرز ما حدث خلال الأسبوع وملاحظات المتابعة</span></button>'
     +'<button class="report-lib-card" data-external-report="behavior"><strong>سلوك وانضباط</strong><span>ملاحظات السلوك والحالات الإيجابية والسلبية</span></button>'
     +'<button class="report-lib-card" data-external-report="parent"><strong>تواصل ولي أمر</strong><span>نموذج مختصر يوثق سبب التواصل وما تم</span></button>'
+    +'<button class="report-lib-card featured" id="generalGradeExport"><strong>تصدير الدرجات</strong><span>اختبار محدد أو الشهرية أو النهائية أو جميع الدرجات · PDF / Excel / نور</span></button>'
     +'</div></div>'
     +'<div class="report-group"><div class="report-group-head"><div><strong>خطط وإجراءات</strong><span>نماذج جاهزة قابلة للتعديل والطباعة</span></div></div><div class="report-library-grid">'
     +'<button class="report-lib-card featured" data-external-report="remedial"><strong>خطة علاجية ذكية</strong><span>تقترح التعثر والهدف والإجراء وإعادة القياس</span></button>'
@@ -1412,6 +1415,7 @@ function renderReports(){
     +'<button class="report-lib-card" data-external-report="referral"><strong>تحويل طالب</strong><span>إحالة للوكيل أو الموجه الطلابي أو الإدارة</span></button>'
     +'</div></div>';
   qa('[data-external-report]',box).forEach(b=>b.onclick=()=>openReportSubjectPicker(b.dataset.externalReport));
+  const gradeBtn=q('#generalGradeExport',box);if(gradeBtn)gradeBtn.onclick=()=>openGradeExport(null);
 }
 function openReportSubjectPicker(type){
   const labels={progress:'تقرير أداء شامل',weekly:'متابعة أسبوعية',behavior:'سلوك وانضباط',parent:'تواصل ولي أمر',remedial:'خطة علاجية',evidence:'شاهد تنفيذ',referral:'تحويل طالب'};
@@ -1442,6 +1446,116 @@ function openExternalReportByType(type,studentId){
   if(type==='referral')return openStudentReferral(studentId);
 }
 
+
+
+function inferredTestType(e){
+  if(e?.testType)return e.testType;
+  const n=String(e?.label||'');
+  if(n.includes('نهائي'))return 'final';
+  if(n.includes('شهر'))return 'monthly';
+  if(n.includes('قصير'))return 'short';
+  return 'other';
+}
+function gradeTestCatalog(classId){
+  const ids=new Set(state.students.filter(st=>st.classId===classId).map(st=>st.id));
+  const map=new Map();
+  state.events.filter(e=>e.module==='tests'&&ids.has(e.studentId)).forEach(e=>{
+    const type=inferredTestType(e), key=[type,e.label||'اختبار',Number(e.max)||0].join('|');
+    if(!map.has(key))map.set(key,{key,type,label:e.label||'اختبار',max:Number(e.max)||0,date:e.date||''});
+  });
+  return [...map.values()].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+function gradeExportData({studentId=null,classId,scope='all',testKey=''}) {
+  const cls=state.classes.find(c=>c.id===classId);
+  const allTests=gradeTestCatalog(classId);
+  let tests=allTests;
+  if(scope==='monthly')tests=allTests.filter(t=>t.type==='monthly');
+  if(scope==='final')tests=allTests.filter(t=>t.type==='final');
+  if(scope==='specific')tests=allTests.filter(t=>t.key===testKey);
+  const students=studentId?state.students.filter(st=>st.id===studentId):state.students.filter(st=>st.classId===classId);
+  const rows=students.map(st=>{
+    const grades=tests.map(t=>{
+      const matches=state.events.filter(e=>e.module==='tests'&&e.studentId===st.id&&
+        [inferredTestType(e),e.label||'اختبار',Number(e.max)||0].join('|')===t.key);
+      const e=matches.at(-1);
+      return e?{value:Number(e.value),max:Number(e.max)||t.max,date:e.date||''}:null;
+    });
+    return {student:st,grades};
+  });
+  return {cls,scope,tests,rows};
+}
+function htmlEsc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function gradeTableHtml(data){
+  const head='<tr><th>الطالب</th>'+data.tests.map(t=>'<th>'+htmlEsc(t.label)+'<br><small>/'+htmlEsc(t.max)+'</small></th>').join('')+'</tr>';
+  const rows=data.rows.map(r=>'<tr><td>'+htmlEsc(r.student.name)+'</td>'+r.grades.map(g=>'<td>'+(g?htmlEsc(g.value)+' / '+htmlEsc(g.max):'—')+'</td>').join('')+'</tr>').join('');
+  return '<table><thead>'+head+'</thead><tbody>'+rows+'</tbody></table>';
+}
+function gradeScopeLabel(scope){
+  return ({all:'جميع الدرجات',monthly:'الاختبارات الشهرية',final:'الاختبارات النهائية',specific:'اختبار محدد'})[scope]||'الدرجات';
+}
+function downloadGradeExcel(data){
+  if(!data.tests.length){showToast('لا توجد درجات مطابقة للاختيار.');return}
+  const cls=data.cls;
+  const title='كشف درجات '+(cls?cls.grade+' '+cls.name:'');
+  const table=gradeTableHtml(data);
+  const html='\ufeff<html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Arial}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:7px;text-align:center}th{background:#eaf4f2}</style></head><body><h2>'+htmlEsc(title)+'</h2><p>'+htmlEsc(gradeScopeLabel(data.scope))+'</p>'+table+'</body></html>';
+  const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=('درجات_'+(cls?.name||'الطلاب')+'_'+gradeScopeLabel(data.scope)).replace(/[\\/:*?"<>|]/g,'_')+'.xls';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);
+}
+function openNoorGradePostPreview(data){
+  if(data.tests.length!==1){showToast('رصد نور يحتاج اختيار اختبار محدد واحد.');return}
+  const t=data.tests[0];
+  openReportSheet('<div class="h2">رصد الدرجات في نور</div><div class="small mt8">'+htmlEsc(t.label)+' /'+htmlEsc(t.max)+'</div>'
+    +'<div class="notice mt12">تم تجهيز المطابقة حسب معرّف نور/السجل للطلاب. في الموقع التجريبي تتم المعاينة فقط؛ الإرسال الفعلي يعمل عند وجود جلسة نور موثقة في التطبيق النهائي.</div>'
+    +'<table class="table mt12"><tr><th>الطالب</th><th>الدرجة</th><th>نور</th></tr>'
+    +data.rows.map(r=>'<tr><td>'+htmlEsc(r.student.name)+'</td><td>'+(r.grades[0]?htmlEsc(r.grades[0].value)+'/'+htmlEsc(r.grades[0].max):'—')+'</td><td>'+(r.student.noorStudentId?'✓ جاهز':'⚠ يحتاج مطابقة')+'</td></tr>').join('')
+    +'</table><div class="row mt16"><button class="btn soft" id="noorGradeBack">رجوع</button><button class="btn primary" id="noorGradeReady" style="flex:1">تجهيز الرصد في نور</button></div>');
+  q('#noorGradeBack',sheet).onclick=()=>openGradeExport(null);
+  q('#noorGradeReady',sheet).onclick=()=>showToast('الكشف جاهز للرصد عند اتصال جلسة نور.','');
+}
+function openGradeExport(studentId){
+  const st=studentId?state.students.find(x=>x.id===studentId):null;
+  let classId=st?.classId||state.reportClassId||state.classes[0]?.id;
+  openReportSheet('<div class="row between"><div><div class="h2">تصدير الدرجات</div><div class="small">'+(st?'درجات '+htmlEsc(st.name):'كشف درجات الطلاب')+'</div></div><button class="iconbtn" id="gradeExportClose">×</button></div>'
+    +(st?'':'<div class="label mt16">الفصل</div><select class="field" id="geClass">'+state.classes.map(c=>'<option value="'+c.id+'" '+(c.id===classId?'selected':'')+'>'+htmlEsc(c.grade+' — '+c.name)+'</option>').join('')+'</select>')
+    +'<div class="label mt12">نوع التصدير</div><select class="field" id="geScope"><option value="specific">اختبار محدد</option><option value="monthly">جميع الاختبارات الشهرية</option><option value="final">جميع الاختبارات النهائية</option><option value="all">كل الدرجات</option></select>'
+    +'<div id="geSpecificWrap"><div class="label mt12">الاختبار</div><select class="field" id="geTest"></select></div>'
+    +'<div class="panel mt12" id="geSummary"></div>'
+    +'<div class="grid2 mt12"><button class="btn primary" id="gePdf">PDF</button><button class="btn soft" id="geExcel">Excel</button></div>'
+    +'<button class="btn brown mt8" id="geNoor" style="width:100%">رصد الاختبار في نور</button>');
+  q('#gradeExportClose',sheet).onclick=closeSheet;
+  const classEl=q('#geClass',sheet),scopeEl=q('#geScope',sheet),testEl=q('#geTest',sheet),wrap=q('#geSpecificWrap',sheet);
+  function currentClass(){return st?.classId||(classEl?.value||classId)}
+  function fillTests(){
+    classId=currentClass();state.reportClassId=classId;
+    const tests=gradeTestCatalog(classId);
+    testEl.innerHTML=tests.length?tests.map(t=>'<option value="'+htmlEsc(t.key)+'">'+htmlEsc(t.label)+' /'+htmlEsc(t.max)+' · '+({monthly:'شهري',final:'نهائي',short:'قصير',other:'أخرى'}[t.type]||t.type)+'</option>').join(''):'<option value="">لا توجد اختبارات مسجلة</option>';
+    refresh();
+  }
+  function currentData(){
+    return gradeExportData({studentId,classId:currentClass(),scope:scopeEl.value,testKey:testEl.value});
+  }
+  function refresh(){
+    wrap.style.display=scopeEl.value==='specific'?'block':'none';
+    const d=currentData();
+    q('#geSummary',sheet).innerHTML='<div class="row between"><strong>'+gradeScopeLabel(d.scope)+'</strong><span class="badge">'+d.tests.length+' اختبار</span></div><div class="small mt8">'+d.rows.length+' '+(d.rows.length===1?'طالب':'طلاب')+' · '+(d.cls?htmlEsc(d.cls.grade+' — '+d.cls.name):'')+'</div>';
+    q('#geNoor',sheet).disabled=!(d.scope==='specific'&&d.tests.length===1);
+    q('#geNoor',sheet).style.opacity=q('#geNoor',sheet).disabled?'.5':'1';
+  }
+  if(classEl)classEl.onchange=fillTests;
+  scopeEl.onchange=refresh;
+  testEl.onchange=refresh;
+  q('#gePdf',sheet).onclick=()=>{
+    const d=currentData();if(!d.tests.length){showToast('لا توجد درجات مطابقة للاختيار.');return}
+    const body='<div class="panel"><div class="row between"><strong>'+gradeScopeLabel(d.scope)+'</strong><span>'+(d.cls?htmlEsc(d.cls.grade+' — '+d.cls.name):'')+'</span></div></div><div class="mt12">'+gradeTableHtml(d)+'</div>';
+    openPrintWindow('كشف الدرجات',st?st.name:'',d.cls,body,state.reportSignatures,[]);
+  };
+  q('#geExcel',sheet).onclick=()=>downloadGradeExcel(currentData());
+  q('#geNoor',sheet).onclick=()=>openNoorGradePostPreview(currentData());
+  fillTests();
+}
 
 function studentSmartContext(studentId){
   if(!studentId)return null;
