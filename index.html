@@ -667,21 +667,10 @@ function resetSheetDrag(){
   overlay.classList.remove('sheet-dragging');
   sheetBox.style.transform='';
 }
-let reportSheetHistory=[];
-function openSheet(html){reportSheetHistory=[];resetSheetDrag();sheetBox.scrollTop=0;overlay.classList.remove('report-overlay','compact-sheet');sheet.innerHTML=html;overlay.classList.remove('hidden')}
-function openCompactSheet(html){reportSheetHistory=[];resetSheetDrag();sheetBox.scrollTop=0;overlay.classList.remove('report-overlay');overlay.classList.add('compact-sheet');sheet.innerHTML=html;overlay.classList.remove('hidden')}
-function openReportSheet(html,opts={}){
-  resetSheetDrag();sheetBox.scrollTop=0;overlay.classList.remove('compact-sheet');overlay.classList.add('report-overlay');
-  if(opts.reset)reportSheetHistory=[];
-  if(opts.push!==false&&sheet.innerHTML&&overlay.classList.contains('report-overlay')&&!overlay.classList.contains('hidden'))reportSheetHistory.push(sheet.innerHTML);
-  sheet.innerHTML=html;overlay.classList.remove('hidden');
-}
-function reportSheetBack(){
-  if(reportSheetHistory.length){const prev=reportSheetHistory.pop();openReportSheet(prev,{push:false});return true}
-  return false;
-}
+function openSheet(html){resetSheetDrag();sheetBox.scrollTop=0;overlay.classList.remove('report-overlay','compact-sheet');sheet.innerHTML=html;overlay.classList.remove('hidden')}
+function openCompactSheet(html){resetSheetDrag();sheetBox.scrollTop=0;overlay.classList.remove('report-overlay');overlay.classList.add('compact-sheet');sheet.innerHTML=html;overlay.classList.remove('hidden')}
+function openReportSheet(html){resetSheetDrag();sheetBox.scrollTop=0;overlay.classList.remove('compact-sheet');overlay.classList.add('report-overlay');sheet.innerHTML=html;overlay.classList.remove('hidden')}
 function closeSheet(){
-  reportSheetHistory=[];
   resetSheetDrag();
   overlay.classList.remove('report-overlay','compact-sheet');
   overlay.classList.add('hidden');
@@ -1683,7 +1672,7 @@ function renderReports(){
 function openReportSubjectPicker(type){
   const labels={progress:'تقرير أداء شامل',weekly:'متابعة أسبوعية',behavior:'سلوك وانضباط',parent:'تواصل ولي أمر',remedial:'خطة علاجية',evidence:'شاهد تنفيذ',referral:'تحويل طالب'};
   openReportSheet('<div class="h2">'+labels[type]+'</div><div class="small mt8">حدد مصدر الطالب. عند اختيار طالب من ركّز سيُعبّئ النظام ما يستطيع تلقائيًا.</div>'
-    +'<div class="grid2 mt16"><button class="toolcard" id="pickRakkizStudent"><strong>طالب من ركّز</strong><span>البيانات والتقارير تُستخرج تلقائيًا من سجله</span></button><button class="toolcard" id="pickExternalStudent"><strong>طالب من الخارج</strong><span>إدخال البيانات يدويًا مع قالب جاهز</span></button></div>',{reset:true});
+    +'<div class="grid2 mt16"><button class="toolcard" id="pickRakkizStudent"><strong>طالب من ركّز</strong><span>البيانات والتقارير تُستخرج تلقائيًا من سجله</span></button><button class="toolcard" id="pickExternalStudent"><strong>طالب من الخارج</strong><span>إدخال البيانات يدويًا مع قالب جاهز</span></button></div>');
   q('#pickRakkizStudent',sheet).onclick=()=>openInternalStudentPicker(type);
   q('#pickExternalStudent',sheet).onclick=()=>openExternalReportByType(type,null);
 }
@@ -1731,7 +1720,7 @@ function openInternalStudentPicker(type){
       :'<div class="small">لا يوجد طلاب في هذا الفصل.</div>';
     qa('[data-pick-student]',sheet).forEach(b=>b.onclick=()=>openExternalReportByType(type,b.dataset.pickStudent));
   }
-  q('#reportStepBack',sheet).onclick=()=>{if(!reportSheetBack())openReportSubjectPicker(type)};
+  q('#reportStepBack',sheet).onclick=()=>openReportSubjectPicker(type);
   drawGrades();drawClasses();drawStudents();
 }
 
