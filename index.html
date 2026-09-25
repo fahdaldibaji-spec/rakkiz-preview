@@ -1521,8 +1521,7 @@ function downloadGradeExcel(data){
   const cls=data.cls;
   const title='كشف درجات '+(cls?cls.grade+' '+cls.name:'');
   const table=gradeTableHtml(data);
-  const html='\ufeff<html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Arial}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:7px;text-align:center}th{background:#eaf4f2}
-</style></head><body><h2>'+htmlEsc(title)+'</h2><p>'+htmlEsc(gradeScopeLabel(data.scope))+'</p>'+table+'</body></html>';
+  const html='\ufeff<html dir="rtl"><head><meta charset="utf-8"><style>body{font-family:Arial}table{border-collapse:collapse;width:100%}th,td{border:1px solid #bbb;padding:7px;text-align:center}th{background:#eaf4f2}</style></head><body><h2>'+htmlEsc(title)+'</h2><p>'+htmlEsc(gradeScopeLabel(data.scope))+'</p>'+table+'</body></html>';
   const blob=new Blob([html],{type:'application/vnd.ms-excel;charset=utf-8'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=('درجات_'+(cls?.name||'الطلاب')+'_'+gradeScopeLabel(data.scope)).replace(/[\\/:*?"<>|]/g,'_')+'.xls';
