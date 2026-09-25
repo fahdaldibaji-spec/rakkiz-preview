@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.57</title>
+<title>ركّز — موقع تجريبي v0.58</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -2463,21 +2463,37 @@ function openManageItems(){
 }
 
 function openAddGrades(){
-  openSheet(`<div class="h2">إضافة اختبار</div><div class="small mt8">أنشئ اختبارًا مستقلًا، ثم اختر طريقة إدخال درجاته.</div>
+  openSheet(`<div class="h2">إضافة اختبار</div><div class="small mt8">أنشئ بطاقة الاختبار الآن، والدرجات تقدر تدخلها الآن أو ترجع لها لاحقًا.</div>
   <div class="label mt16">اسم الاختبار أو التقييم</div><input id="testName" class="field" value="اختبار قصير 1">
   <div class="grid2 mt12"><div><div class="label">نوع الاختبار</div><select id="testType" class="field"><option value="period">فترة</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div><div><div class="label">الدرجة النهائية</div><input id="testMax" class="field" type="number" min=".25" step=".25" value="20"></div></div>
-  <div class="section-title mt16">طريقة إدخال الدرجات</div>
+  <div class="grid2 mt16">
+    <button class="btn primary" id="saveTestOnly" style="min-height:44px">حفظ الاختبار</button>
+    <button class="btn soft" id="saveAndManual" style="min-height:44px">حفظ + إدخال الدرجات</button>
+  </div>
+  <div class="notice mt12">«حفظ الاختبار» ينشئ البطاقة مباشرة بدون أي درجات. تقدر ترجع لها لاحقًا وتضغط «إدخال الدرجات».</div>
+  <div class="section-title mt16">أو أدخل الدرجات الآن بطريقة أخرى</div>
   <div class="grid2">
     <button class="toolcard" data-source="camera"><strong>تصوير كشف</strong><span>أسماء ودرجات مطبوعة أو مكتوبة</span></button>
     <button class="toolcard" data-source="paper"><strong>صورة ورقة اختبار</strong><span>يقرأ الاسم/الكود والدرجة</span></button>
     <button class="toolcard" data-source="excel"><strong>Excel</strong><span>مطابقة حسب الاسم داخل الفصل</span></button>
     <button class="toolcard" data-source="pdf"><strong>PDF</strong><span>استخراج الأسماء والدرجات</span></button>
-  </div>
-  <button class="btn soft mt12" id="manualGrades" style="width:100%">إدخال يدوي داخل ركّز</button>
-  <div class="notice mt12">المطابقة تتم داخل الفصل الحالي فقط. ترتيب الأسماء لا يهم، والحالات غير الواضحة فقط تُعرض للمراجعة.</div>`);
-  function meta(){return {name:q('#testName',sheet).value.trim()||'اختبار',max:Number(q('#testMax',sheet).value)||20,type:q('#testType',sheet).value||'other'}}
-  qa('[data-source]',sheet).forEach(b=>b.onclick=()=>simulateImport(b.dataset.source,meta()));
-  q('#manualGrades',sheet).onclick=()=>openManualGrades(meta());
+  </div>`);
+  function meta(){
+    const max=Number(q('#testMax',sheet).value);
+    return {name:q('#testName',sheet).value.trim()||'اختبار',max:Number.isFinite(max)&&max>0?max:20,type:q('#testType',sheet).value||'other',date:state.date}
+  }
+  q('#saveTestOnly',sheet).onclick=()=>{
+    const m=meta(),test=ensureTestDefinition(m);
+    closeSheet();renderFollowup();showToast('تم حفظ «'+test.name+'» ويمكن إدخال درجاته لاحقًا.','');
+  };
+  q('#saveAndManual',sheet).onclick=()=>{
+    const m=meta(),test=ensureTestDefinition(m);
+    openManualGrades({testId:test.id,name:test.name,max:test.max,type:test.type,date:test.date},true);
+  };
+  qa('[data-source]',sheet).forEach(b=>b.onclick=()=>{
+    const m=meta(),test=ensureTestDefinition(m);
+    simulateImport(b.dataset.source,{testId:test.id,name:test.name,max:test.max,type:test.type,date:test.date});
+  });
 }
 function simulateImport(source,meta){
   const srcNames={camera:'التصوير',paper:'ورقة الاختبار',excel:'Excel',pdf:'PDF'};
