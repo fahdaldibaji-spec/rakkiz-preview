@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.67</title>
+<title>ركّز — موقع تجريبي v0.68</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -138,7 +138,7 @@ button{cursor:pointer}
 .attstate.absent{background:var(--redbg);color:var(--red)}
 .attstate.late{background:#eef2ff;color:#5561a8;border-color:#d7ddf5}
 .attstate.excused{background:#fff6d8;color:#936d12;border-color:#efd88f}
-.attendance-pulse{display:flex;align-items:center;gap:6px;margin-top:4px;min-height:18px}.attendance-pulse-track{display:flex;align-items:center;gap:3px;direction:ltr}.attendance-pulse-seg{width:11px;height:7px;border-radius:99px;background:#e7edeb;border:1px solid rgba(0,0,0,.025)}.attendance-pulse-seg.present{background:#52a982}.attendance-pulse-seg.absent{background:#cf6a5f}.attendance-pulse-seg.excused{background:#e6bc42}.attendance-pulse-seg.late{background:#7887c8}.attendance-pulse-text{font-size:9.7px;color:var(--muted);font-weight:800;white-space:nowrap}
+.attendance-pulse{display:flex;align-items:center;gap:5px;margin-top:4px;min-height:18px;flex-wrap:nowrap}.attendance-pulse-track{display:flex;align-items:center;gap:3px;direction:ltr;flex:0 0 auto}.attendance-pulse-seg{width:11px;height:7px;border-radius:99px;background:#e7edeb;border:1px solid rgba(0,0,0,.025)}.attendance-pulse-seg.present{background:#52a982}.attendance-pulse-seg.absent{background:#cf6a5f}.attendance-pulse-seg.excused{background:#e6bc42}.attendance-pulse-seg.late{background:#7887c8}.attendance-pulse-text{font-size:9.3px;color:var(--muted);font-weight:800;white-space:nowrap}.attendance-pulse>.attendance-insight-chip{font-size:8.8px;padding:2px 6px;overflow:hidden;text-overflow:ellipsis;max-width:92px}
 .scorepill{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;font-weight:800;font-size:13px;background:#f1f7f6;color:var(--green);border-radius:10px;padding:6px 9px}
 .panel{padding:11px 12px;border:1px solid var(--line);border-radius:14px;background:#fbfdfd}
 .field{width:100%;min-height:46px;border:1px solid var(--line);background:#fff;border-radius:13px;padding:0 12px;font-family:"Cairo",Tahoma,sans-serif;font-size:15px;font-weight:700;color:var(--ink);outline:none}
@@ -473,9 +473,14 @@ const app=document.getElementById('app');
 const overlay=document.getElementById('overlay');
 const sheet=document.getElementById('sheetContent');
 
+function todayIsoRiyadh(){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const o=Object.fromEntries(parts.map(p=>[p.type,p.value]));
+  return o.year+'-'+o.month+'-'+o.day;
+}
 const state={
   view:'home',
-  date:'2026-09-24',
+  date:todayIsoRiyadh(),
   module:'attendance',
   attFilter:'all',
   classId:'c1',
@@ -516,6 +521,7 @@ const state={
   ],
   currentUser:{id:'teacher-demo',name:'أحمد',source:'account'},
   scheduleSettings:{notify:false,before:5},
+  schoolCalendar:{countryCode:'SA',weekStartsOn:0,workdays:[0,1,2,3,4],holidays:[]},
   attendance:{},
   attendanceGrade:{max:10,mode:'decrease',present:0,absent:-1,late:-0.5,excused:0},
   events:[],
@@ -565,6 +571,13 @@ function qa(s,r=app){return [...r.querySelectorAll(s)]}
 function saveReportPrefs(){
   try{localStorage.setItem('rakkiz_report_prefs_v1',JSON.stringify({branding:state.reportBranding,signatures:state.reportSignatures}))}catch{}
 }
+function saveSchoolCalendar(){try{localStorage.setItem('rakkiz_school_calendar_v1',JSON.stringify(state.schoolCalendar))}catch{}}
+function loadSchoolCalendar(){
+  try{
+    const x=JSON.parse(localStorage.getItem('rakkiz_school_calendar_v1')||'null');
+    if(x)state.schoolCalendar={...state.schoolCalendar,...x,workdays:Array.isArray(x.workdays)?x.workdays:state.schoolCalendar.workdays,holidays:Array.isArray(x.holidays)?x.holidays:[]};
+  }catch{}
+}
 function loadReportPrefs(){
   try{
     const x=JSON.parse(localStorage.getItem('rakkiz_report_prefs_v1')||'null');
@@ -572,7 +585,7 @@ function loadReportPrefs(){
     if(x?.signatures)state.reportSignatures={...state.reportSignatures,...x.signatures};
   }catch{}
 }
-loadReportPrefs();
+loadReportPrefs();loadSchoolCalendar();
 function renderAccount(){
   const nameEl=q('#accountTeacherName');if(nameEl)nameEl.textContent=teacherDisplayName();
   const el=q('#reportSettingsSummary');if(!el)return;
@@ -1078,13 +1091,25 @@ function renderDate(){
   if(lessonText)lessonText.textContent=getLessonTitle()||'إضافة اسم الدرس';
   q('#gregDate').textContent=gregDateText(state.date,true);
   q('#hijriDate').textContent=hijriDateText(state.date)||'التاريخ الهجري'
-  q('#dayState').textContent=state.date==='2026-09-24'?'اليوم':'سجل سابق قابل للتعديل';
+  q('#dayState').textContent=state.date===todayIsoRiyadh()?'اليوم':'سجل سابق قابل للتعديل';
 }
 q('#prevDay').addEventListener('click',()=>shiftDate(-1));
 q('#nextDay').addEventListener('click',()=>shiftDate(1));
-q('#todayBtn').addEventListener('click',()=>{state.date='2026-09-24';renderDate();renderStudents()});
+q('#todayBtn').addEventListener('click',()=>{state.date=todayIsoRiyadh();renderDate();renderFollowup()});
 
 function currentStudents(){return state.students.filter(s=>s.classId===state.classId)}
+function schoolCalendar(){
+  state.schoolCalendar=state.schoolCalendar||{countryCode:'SA',weekStartsOn:0,workdays:[0,1,2,3,4],holidays:[]};
+  return state.schoolCalendar;
+}
+function isSchoolHoliday(iso){return (schoolCalendar().holidays||[]).includes(iso)}
+function isSchoolWorkday(iso){return (schoolCalendar().workdays||[]).includes(weekdayForIso(iso))&&!isSchoolHoliday(iso)}
+function scheduledLessonsForDate(iso,classId,subject){
+  if(!isSchoolWorkday(iso))return [];
+  const day=weekdayForIso(iso);
+  return state.schedule.filter(l=>l.day===day&&l.classId===classId&&(!subject||l.subject===subject)).sort((a,b)=>minutesOf(a.start)-minutesOf(b.start));
+}
+function hasScheduledInstruction(iso,classId,subject){return scheduledLessonsForDate(iso,classId,subject).length>0}
 function attendanceSubject(){return classSubject(state.classId)}
 function attKey(sid){return state.date+'|'+attendanceSubject()+'|'+state.classId+'|'+sid}
 function legacyAttKey(sid){return state.date+'|'+state.classId+'|'+sid}
@@ -1094,13 +1119,19 @@ function parseAttendanceKey(key){
   return {date:p[0],subject:null,classId:p[1],studentId:p[2]};
 }
 function getAtt(sid){return state.attendance[attKey(sid)]??state.attendance[legacyAttKey(sid)]??'present'}
-function ensureAttendanceDay(){currentStudents().forEach(st=>{const k=attKey(st.id);if(!(k in state.attendance)&&!(legacyAttKey(st.id) in state.attendance))state.attendance[k]='present'})}
+function ensureAttendanceDay(){
+  const subject=attendanceSubject();
+  if(!hasScheduledInstruction(state.date,state.classId,subject))return;
+  currentStudents().forEach(st=>{
+    const k=attKey(st.id);
+    if(!(k in state.attendance)&&!(legacyAttKey(st.id) in state.attendance))state.attendance[k]='present';
+  });
+}
 function weekdayForIso(iso){return dateParts(iso).getUTCDay()}
 function attendanceLessonFor(date,classId,subject){
-  const day=weekdayForIso(date);
-  const matches=state.schedule.filter(l=>l.day===day&&l.classId===classId&&(!subject||l.subject===subject)).sort((a,b)=>minutesOf(a.start)-minutesOf(b.start));
+  const matches=scheduledLessonsForDate(date,classId,subject);
   if(!matches.length)return null;
-  if(date===state.date){
+  if(date===todayIsoRiyadh()){
     const now=new Date(),cur=now.getHours()*60+now.getMinutes();
     return matches.find(l=>cur>=minutesOf(l.start)&&cur<minutesOf(l.end))||matches[0];
   }
@@ -1124,6 +1155,11 @@ function setAtt(sid,val){
 }
 const attLabels={present:'حاضر',absent:'غائب',late:'متأخر',excused:'مستأذن'};
 function cycleAtt(sid){
+  const subject=attendanceSubject();
+  if(!hasScheduledInstruction(state.date,state.classId,subject)){
+    showToast(isSchoolHoliday(state.date)?'هذا اليوم مسجل إجازة مدرسية.':'لا توجد حصة لهذا الفصل والمادة في هذا اليوم.');
+    return;
+  }
   const seq=['present','absent','late','excused'], i=seq.indexOf(getAtt(sid));
   setAtt(sid,seq[(i+1)%seq.length]);
 }
@@ -1870,22 +1906,46 @@ function attendanceHistoryFor(studentId,limit=7,classId=state.classId,subject=cl
   const out=[...dedup.values()].sort((a,b)=>a.date.localeCompare(b.date));
   return Number.isFinite(limit)?out.slice(-limit):out;
 }
-function attendanceCountsFor(studentId,classId=state.classId,subject=classSubject(classId)){
+function isoShift(iso,days){
+  const d=dateParts(iso);d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);
+}
+function weekRangeFor(iso=state.date){
+  const startDay=Number(schoolCalendar().weekStartsOn??0);
+  const dow=weekdayForIso(iso);
+  const back=(dow-startDay+7)%7;
+  const start=isoShift(iso,-back),end=isoShift(start,6);
+  return {start,end};
+}
+function attendanceHistoryForWeek(studentId,classId=state.classId,subject=classSubject(classId),iso=state.date){
+  const {start,end}=weekRangeFor(iso);
+  return attendanceHistoryFor(studentId,Infinity,classId,subject).filter(x=>x.date>=start&&x.date<=end&&isSchoolWorkday(x.date)&&hasScheduledInstruction(x.date,classId,subject));
+}
+function attendanceCountsFromRows(rows){
   const counts={present:0,absent:0,late:0,excused:0};
-  attendanceHistoryFor(studentId,Infinity,classId,subject).forEach(x=>{if(x.status in counts)counts[x.status]++});
+  rows.forEach(x=>{if(x.status in counts)counts[x.status]++});
   return counts;
 }
-function attendanceInsightFor(studentId,classId=state.classId,subject=classSubject(classId)){
-  const hist=attendanceHistoryFor(studentId,8,classId,subject);
-  if(hist.length<3)return 'سجل جديد';
+function attendanceCountsFor(studentId,classId=state.classId,subject=classSubject(classId)){
+  return attendanceCountsFromRows(attendanceHistoryFor(studentId,Infinity,classId,subject));
+}
+function attendanceInsightFromRows(hist){
+  if(!hist.length)return 'لا سجل هذا الأسبوع';
+  if(hist.length<2)return 'بداية الأسبوع';
   const bad=x=>x.status==='absent'||x.status==='late';
-  const recent=hist.slice(-4),older=hist.slice(0,-4).slice(-4);
-  const recentBad=recent.filter(bad).length,olderBad=older.filter(bad).length;
-  const totalBad=hist.filter(bad).length;
+  const recent=hist.slice(-3),older=hist.slice(0,-3).slice(-3);
+  const recentBad=recent.filter(bad).length,olderBad=older.filter(bad).length,totalBad=hist.filter(bad).length;
   if(older.length>=2&&recentBad<olderBad)return 'تحسن مؤخرًا';
   if(totalBad===0&&hist.filter(x=>x.status==='excused').length<=1)return 'منتظم';
   if(recentBad>=2||totalBad>=Math.ceil(hist.length*.35))return 'يحتاج متابعة';
   return 'متذبذب';
+}
+function weeklyAttendanceInsightFor(studentId,classId=state.classId,subject=classSubject(classId)){
+  return attendanceInsightFromRows(attendanceHistoryForWeek(studentId,classId,subject));
+}
+function attendanceInsightFor(studentId,classId=state.classId,subject=classSubject(classId)){
+  const hist=attendanceHistoryFor(studentId,Infinity,classId,subject);
+  if(hist.length<3)return hist.length?'سجل جديد':'لا سجل';
+  return attendanceInsightFromRows(hist);
 }
 function attendancePulseOnlyHtml(studentId,classId=state.classId,subject=classSubject(classId),limit=7){
   const hist=attendanceHistoryFor(studentId,limit,classId,subject);
@@ -1915,17 +1975,24 @@ function openAttendanceHistory(studentId,status){
   q('#attHistoryClose',sheet).onclick=()=>openStudentCard(studentId);
 }
 function attendancePulseHtml(studentId){
-  const hist=attendanceHistoryFor(studentId,7);
-  const counts={present:0,absent:0,late:0,excused:0};
-  hist.forEach(x=>{if(x.status in counts)counts[x.status]++});
-  const padded=Array(Math.max(0,7-hist.length)).fill(null).concat(hist);
-  const segs=padded.map(x=>'<span class="attendance-pulse-seg '+(x?.status||'')+'" title="'+(x?dualDateText(x.date)+' — '+attLabels[x.status]:'لا يوجد سجل')+'"></span>').join('');
+  const classId=state.classId,subject=classSubject(classId),hist=attendanceHistoryForWeek(studentId,classId,subject);
+  const counts=attendanceCountsFromRows(hist);
+  const {start,end}=weekRangeFor(state.date);
+  const scheduledDates=[];
+  for(let d=start;d<=end;d=isoShift(d,1)){
+    if(isSchoolWorkday(d)&&hasScheduledInstruction(d,classId,subject))scheduledDates.push(d);
+  }
+  const byDate=new Map(hist.map(x=>[x.date,x]));
+  const segs=scheduledDates.map(date=>{
+    const x=byDate.get(date);
+    return '<span class="attendance-pulse-seg '+(x?.status||'')+'" title="'+(x?dualDateText(x.date)+' — '+attLabels[x.status]:dualDateText(date)+' — لم تسجل الحصة')+'"></span>';
+  }).join('');
   const parts=[];
   if(counts.present)parts.push(counts.present+' ح');
   if(counts.absent)parts.push(counts.absent+' غ');
   if(counts.excused)parts.push(counts.excused+' إ');
   if(counts.late)parts.push(counts.late+' ت');
-  return '<div class="attendance-pulse"><span class="attendance-pulse-track">'+segs+'</span><span class="attendance-pulse-text">'+(parts.join(' · ')||'لا سجل')+'</span></div>';
+  return '<div class="attendance-pulse"><span class="attendance-pulse-track">'+(segs||'<span class="attendance-pulse-seg"></span>')+'</span><span class="attendance-pulse-text">'+(parts.join(' · ')||'هذا الأسبوع')+'</span><span class="attendance-insight-chip">'+weeklyAttendanceInsightFor(studentId,classId,subject)+'</span></div>';
 }
 
 function renderStudents(){
@@ -2068,7 +2135,7 @@ function openStudentCard(id){
       +'<button class="student-att-card absent" data-att-history="absent"><strong>'+att.absent+'</strong><span>غائب</span></button>'
       +'<button class="student-att-card excused" data-att-history="excused"><strong>'+att.excused+'</strong><span>مستأذن</span></button>'
       +'<button class="student-att-card late" data-att-history="late"><strong>'+att.late+'</strong><span>متأخر</span></button>'
-    +'</div><div class="student-attendance-insight"><span class="attendance-insight-label">نبض الحضور</span>'+attendancePulseOnlyHtml(id,st.classId,subject,7)+'<span class="attendance-insight-chip">'+insight+'</span></div></div>'
+    +'</div><div class="student-attendance-insight"><span class="attendance-insight-label">الفصل الدراسي</span>'+attendancePulseOnlyHtml(id,st.classId,subject,7)+'<span class="attendance-insight-chip">'+insight+'</span></div></div>'
     +(alerts.length?'<div class="student-card-alert">⚠ لدى الطالب '+alerts.length+' متابعة مفتوحة — افتح قسم المتابعات بالأسفل.</div>':'')
     +'<div class="student-card-actions"><button class="btn primary" id="cardReports">تقارير الطالب</button><button class="btn soft" id="cardNote">+ ملاحظة</button></div>'
     +'<details class="student-accordion"><summary><span>المتابعات المفتوحة</span><span class="badge '+(alerts.length?'warn':'')+'">'+alerts.length+'</span></summary><div class="student-accordion-body">'
