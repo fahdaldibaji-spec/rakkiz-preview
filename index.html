@@ -1131,9 +1131,10 @@ function wireSmartClose(){const x=q('#smartReportClose',sheet);if(x)x.onclick=cl
 function smartPrintCommon(studentId,title,bodyBuilder){
   const name=q('#srName',sheet)?.value.trim()||'',grade=q('#srGrade',sheet)?.value.trim()||'',className=q('#srClass',sheet)?.value.trim()||'';
   if(!name){showToast('اكتب اسم الطالب أولًا.');return}
+  const preparedBody=bodyBuilder();
   openSignatureStep(studentId,'smart',action=>{
-    if(action==='back'){showToast('ارجع للتقرير من قسم التقارير.');closeSheet();return}
-    openPrintWindow(title,name,{grade,name:className,subject:''},bodyBuilder(),state.reportSignatures,[]);
+    if(action==='back'){closeSheet();showView('reports');return}
+    openPrintWindow(title,name,{grade,name:className,subject:''},preparedBody,state.reportSignatures,[]);
     closeSheet();
   });
 }
