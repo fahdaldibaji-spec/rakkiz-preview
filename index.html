@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.71</title>
+<title>ركّز — موقع تجريبي v0.72</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1232,12 +1232,12 @@ function addEvent(studentId,main,sub){
     const eventKey=bulkEventKey(bulk.batchId,studentId,main);
     let ev=state.events.find(e=>e.eventKey===eventKey);
     if(ev){
-      const ctx=currentEventContext();ev.subId=sub.id;ev.label=sub.name;ev.value=sub.value;ev.follow=needsFollow;ev.resolved=false;Object.assign(ev,ctx);ev.updatedAt=new Date().toISOString();
+      const ctx=currentEventContext();ev.subId=sub.id;ev.label=sub.name;ev.value=sub.value;Object.assign(ev,ctx);if(needsFollow){ev.follow=true;ev.followEver=true;ev.resolved=false;delete ev.resolvedAt;delete ev.resolvedDate}else if(ev.follow||ev.followEver){ev.follow=true;ev.followEver=true;ev.resolved=true;ev.resolvedAt=new Date().toISOString();ev.resolvedDate=todayIsoRiyadh()}else{ev.follow=false;ev.resolved=true}ev.updatedAt=new Date().toISOString();
     }else{
-      const ctx=currentEventContext();state.events.push({id:'e'+Date.now()+Math.random(),eventKey,batchId:bulk.batchId,studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,...ctx,createdAt:new Date().toISOString()});
+      const ctx=currentEventContext();state.events.push({id:'e'+Date.now()+Math.random(),eventKey,batchId:bulk.batchId,studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,followEver:needsFollow,resolved:!needsFollow,...ctx,createdAt:new Date().toISOString()});
     }
   }else{
-    const ctx=currentEventContext();state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,resolved:false,...ctx,createdAt:new Date().toISOString()});
+    const ctx=currentEventContext();state.events.push({id:'e'+Date.now()+Math.random(),studentId,date:state.date,module:state.module,mainId:main.id,subId:sub.id,label:sub.name,value:sub.value,follow:needsFollow,followEver:needsFollow,resolved:!needsFollow,...ctx,createdAt:new Date().toISOString()});
   }
   delete state.evalFollow[key];
   const after=scoreFor(studentId,main), raw=Number(sub.value||0), actual=after-before;
@@ -1339,9 +1339,9 @@ function setCustomCardQuickState(item,card,studentId,nextStatus){
   const value=nextStatus==='complete'?Number(card.max):nextStatus==='incomplete'?Number((Number(card.max)/2).toFixed(2)):0;
   const follow=nextStatus==='missing'||nextStatus==='incomplete';
   if(ev){
-    ev.customCardStatus=nextStatus;ev.value=value;ev.max=card.max;ev.label=card.name;ev.date=card.date;ev.follow=follow;ev.resolved=!follow;ev.updatedAt=new Date().toISOString();
+    ev.customCardStatus=nextStatus;ev.value=value;ev.max=card.max;ev.label=card.name;ev.date=card.date;if(follow){ev.follow=true;ev.followEver=true;ev.resolved=false;delete ev.resolvedAt;delete ev.resolvedDate}else if(ev.follow||ev.followEver){ev.follow=true;ev.followEver=true;ev.resolved=true;ev.resolvedAt=new Date().toISOString();ev.resolvedDate=todayIsoRiyadh()}else{ev.follow=false;ev.resolved=true}ev.updatedAt=new Date().toISOString();
   }else{
-    state.events.push({id:'e'+Date.now()+Math.random(),module:'custom-card',customItemId:item.id,customCardId:card.id,classId:card.classId,studentId,label:card.name,value,max:card.max,date:card.date,customCardStatus:nextStatus,follow,resolved:!follow,createdAt:new Date().toISOString()});
+    state.events.push({id:'e'+Date.now()+Math.random(),module:'custom-card',customItemId:item.id,customCardId:card.id,classId:card.classId,studentId,label:card.name,value,max:card.max,date:card.date,customCardStatus:nextStatus,follow,followEver:follow,resolved:!follow,createdAt:new Date().toISOString()});
   }
 }
 function cycleCustomCardStudent(item,card,studentId){
@@ -1425,8 +1425,8 @@ function openCustomCardGrades(itemId,cardId){
       if(inp.value===''){if(old)state.events=state.events.filter(e=>e!==old);return}
       const value=Number(inp.value);
       const status=value<=0?'missing':value>=card.max?'complete':'incomplete',follow=status!=='complete';
-      if(old){old.value=value;old.max=card.max;old.label=card.name;old.date=card.date;old.customCardStatus=status;old.follow=follow;old.resolved=!follow;old.updatedAt=new Date().toISOString()}
-      else state.events.push({id:'e'+Date.now()+Math.random(),module:'custom-card',customItemId:itemId,customCardId:cardId,classId:card.classId,studentId:sid,label:card.name,value,max:card.max,date:card.date,customCardStatus:status,follow,resolved:!follow,createdAt:new Date().toISOString()});
+      if(old){old.value=value;old.max=card.max;old.label=card.name;old.date=card.date;old.customCardStatus=status;if(follow){old.follow=true;old.followEver=true;old.resolved=false;delete old.resolvedAt;delete old.resolvedDate}else if(old.follow||old.followEver){old.follow=true;old.followEver=true;old.resolved=true;old.resolvedAt=new Date().toISOString();old.resolvedDate=todayIsoRiyadh()}else{old.follow=false;old.resolved=true}old.updatedAt=new Date().toISOString()}
+      else state.events.push({id:'e'+Date.now()+Math.random(),module:'custom-card',customItemId:itemId,customCardId:cardId,classId:card.classId,studentId:sid,label:card.name,value,max:card.max,date:card.date,customCardStatus:status,follow,followEver:follow,resolved:!follow,createdAt:new Date().toISOString()});
     });
     closeSheet();renderFollowup();showToast('تم حفظ رصد «'+card.name+'».','');
   };
@@ -1554,8 +1554,9 @@ function setHomeworkQuickState(hw,studentId,nextStatus){
     ev.value=value;
     ev.max=hw.max;
     ev.label=hw.name;
-    ev.follow=follow;
-    ev.resolved=!follow;
+    if(follow){ev.follow=true;ev.followEver=true;ev.resolved=false;delete ev.resolvedAt;delete ev.resolvedDate}
+    else if(ev.follow||ev.followEver){ev.follow=true;ev.followEver=true;ev.resolved=true;ev.resolvedAt=new Date().toISOString();ev.resolvedDate=todayIsoRiyadh()}
+    else{ev.follow=false;ev.resolved=true}
     ev.date=hw.date;
     ev.classId=hw.classId;
     ev.updatedAt=new Date().toISOString();
@@ -1565,7 +1566,7 @@ function setHomeworkQuickState(hw,studentId,nextStatus){
       homeworkId:hw.id,classId:hw.classId,studentId,
       date:hw.date,module:'homework',label:hw.name,
       value,max:hw.max,homeworkStatus:nextStatus,
-      follow,resolved:!follow,createdAt:new Date().toISOString()
+      follow,followEver:follow,resolved:!follow,createdAt:new Date().toISOString()
     });
   }
 }
@@ -1827,7 +1828,7 @@ q('#applySelectedToAll').addEventListener('click',()=>{
       eventKey:bulkEventKey(batchId,st.id,main),
       batchId,
       studentId:st.id,date:state.date,module:state.module,mainId:main.id,subId:sub.id,
-      label:sub.name,value:sub.value,follow:looksNegative(sub),resolved:false,createdAt:new Date().toISOString()
+      label:sub.name,value:sub.value,follow:looksNegative(sub),followEver:looksNegative(sub),resolved:!looksNegative(sub),...currentEventContext(),createdAt:new Date().toISOString()
     });
   });
   showToast('تم تطبيق البند على جميع الطلاب. الآن اختر بندًا آخر واضغط فقط الاستثناءات.');
@@ -1839,7 +1840,7 @@ q('#addGradesBtn').addEventListener('click',()=>openAddGrades());
 function noteCount(studentId){
   return state.events.filter(e=>e.studentId===studentId&&e.module==='note').length;
 }
-function followHistory(studentId){return state.events.filter(e=>e.studentId===studentId&&e.follow).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||'').localeCompare(a.createdAt||''))}
+function followHistory(studentId){return state.events.filter(e=>e.studentId===studentId&&(e.follow||e.followEver)).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||'').localeCompare(a.createdAt||''))}
 function followTotalCount(studentId){return followHistory(studentId).length}
 function followResolvedCount(studentId){return followHistory(studentId).filter(e=>e.resolved).length}
 function currentEventContext(){
@@ -2920,7 +2921,7 @@ function openNote(id){
   q('#cancelNote',sheet).onclick=closeSheet;
   q('#saveNote',sheet).onclick=()=>{
     const t=q('#noteText',sheet).value.trim(); if(!t)return;
-    const ctx=currentEventContext();state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'note',label:t,value:0,follow:rem!=='none',resolved:rem==='none',reminder:rem,...ctx,createdAt:new Date().toISOString()});
+    const ctx=currentEventContext();state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'note',label:t,value:0,follow:rem!=='none',followEver:rem!=='none',resolved:rem==='none',reminder:rem,...ctx,createdAt:new Date().toISOString()});
     closeSheet();renderStudents();
   };
 }
