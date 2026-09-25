@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.32</title>
+<title>ركّز — موقع تجريبي v0.33</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -122,8 +122,14 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 .overlay.report-overlay{align-items:center;padding:12px;background:rgba(17,44,45,.48)}
 .overlay.report-overlay .sheet{border-radius:22px;max-height:94vh;box-shadow:0 24px 70px rgba(10,45,44,.24)}
 .overlay.report-overlay .sheetbar{display:none}
-.sheet{width:min(430px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:24px 24px 0 0;padding:18px 16px 28px;box-shadow:0 -20px 40px rgba(0,0,0,.12);font-family:"Cairo",Tahoma,sans-serif;line-height:1.8}
-.sheetbar{width:44px;height:5px;border-radius:99px;background:#dbe4e2;margin:0 auto 12px}
+.sheet{width:min(430px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:24px 24px 0 0;padding:18px 16px 28px;box-shadow:0 -20px 40px rgba(0,0,0,.12);font-family:"Cairo",Tahoma,sans-serif;line-height:1.8;overscroll-behavior:contain;will-change:transform;transition:transform .2s cubic-bezier(.22,.8,.32,1)}
+.sheet.dragging{transition:none;user-select:none;-webkit-user-select:none}
+.sheet.dismiss-down{transition:transform .16s cubic-bezier(.4,0,1,1);transform:translateY(calc(100% + 36px))!important}
+.sheetbar{width:52px;height:5px;border-radius:99px;background:#dbe4e2;margin:0 auto 12px;cursor:grab;touch-action:none;position:relative}
+.sheetbar:before{content:"";position:absolute;inset:-14px -24px}
+.sheetbar:active{cursor:grabbing}
+.overlay.sheet-dragging{background:rgba(17,44,45,.18)}
+.overlay.report-overlay.sheet-dragging{background:rgba(17,44,45,.28)}
 .hidden{display:none!important}
 .notice{padding:10px 12px;border-radius:13px;background:var(--goldbg);color:#7e621f;font-size:12.5px;font-weight:700;border:1px solid #f0dfb4}
 .oknotice{background:var(--green3);color:var(--green);border-color:#cfe2df}
@@ -427,9 +433,93 @@ const state={
 
 function q(s,r=app){return r.querySelector(s)}
 function qa(s,r=app){return [...r.querySelectorAll(s)]}
-function openSheet(html){overlay.classList.remove('report-overlay');sheet.innerHTML=html;overlay.classList.remove('hidden')}
-function openReportSheet(html){overlay.classList.add('report-overlay');sheet.innerHTML=html;overlay.classList.remove('hidden')}
-function closeSheet(){overlay.classList.remove('report-overlay');overlay.classList.add('hidden');sheet.innerHTML=''}
+const sheetBox=overlay.querySelector('.sheet');
+const sheetBar=overlay.querySelector('.sheetbar');
+function resetSheetDrag(){
+  sheetBox.classList.remove('dragging','dismiss-down');
+  overlay.classList.remove('sheet-dragging');
+  sheetBox.style.transform='';
+}
+function openSheet(html){resetSheetDrag();sheetBox.scrollTop=0;overlay.classList.remove('report-overlay');sheet.innerHTML=html;overlay.classList.remove('hidden')}
+function openReportSheet(html){resetSheetDrag();sheetBox.scrollTop=0;overlay.classList.add('report-overlay');sheet.innerHTML=html;overlay.classList.remove('hidden')}
+function closeSheet(){
+  resetSheetDrag();
+  overlay.classList.remove('report-overlay');
+  overlay.classList.add('hidden');
+  sheet.innerHTML='';
+}
+function dismissSheetBySwipe(){
+  if(overlay.classList.contains('hidden'))return;
+  sheetBox.classList.remove('dragging');
+  sheetBox.classList.add('dismiss-down');
+  overlay.classList.remove('sheet-dragging');
+  setTimeout(closeSheet,165);
+}
+let sheetDrag=null;
+function canStartSheetDrag(target){
+  if(sheetBar.contains(target))return true;
+  if(sheetBox.scrollTop>1)return false;
+  return !target.closest('input,textarea,select,button,a,label,[contenteditable="true"]');
+}
+sheetBox.addEventListener('touchstart',e=>{
+  if(overlay.classList.contains('hidden')||e.touches.length!==1||!canStartSheetDrag(e.target))return;
+  const t=e.touches[0];
+  sheetDrag={startY:t.clientY,lastY:t.clientY,lastT:performance.now(),dy:0,active:false};
+},{passive:true});
+sheetBox.addEventListener('touchmove',e=>{
+  if(!sheetDrag||e.touches.length!==1)return;
+  const t=e.touches[0], now=performance.now(), dy=t.clientY-sheetDrag.startY;
+  if(!sheetDrag.active){
+    if(dy<8){if(dy<-8)sheetDrag=null;return}
+    if(sheetBox.scrollTop>1){sheetDrag=null;return}
+    sheetDrag.active=true;
+    sheetBox.classList.add('dragging');
+    overlay.classList.add('sheet-dragging');
+  }
+  if(dy<=0)return;
+  e.preventDefault();
+  sheetDrag.dy=dy;
+  sheetDrag.velocity=(t.clientY-sheetDrag.lastY)/Math.max(1,now-sheetDrag.lastT);
+  sheetDrag.lastY=t.clientY;sheetDrag.lastT=now;
+  const resisted=dy<120?dy:120+(dy-120)*.72;
+  sheetBox.style.transform='translateY('+resisted+'px)';
+},{passive:false});
+function finishTouchSheetDrag(){
+  if(!sheetDrag)return;
+  const {active,dy,velocity=0}=sheetDrag;sheetDrag=null;
+  if(!active)return;
+  const quick=velocity>.55&&dy>24;
+  if(dy>72||quick)dismissSheetBySwipe();
+  else{
+    sheetBox.classList.remove('dragging');
+    overlay.classList.remove('sheet-dragging');
+    sheetBox.style.transform='translateY(0)';
+    setTimeout(()=>{if(!overlay.classList.contains('hidden'))sheetBox.style.transform=''},210);
+  }
+}
+sheetBox.addEventListener('touchend',finishTouchSheetDrag,{passive:true});
+sheetBox.addEventListener('touchcancel',finishTouchSheetDrag,{passive:true});
+
+// Mouse / stylus support from the grabber, useful on desktop and tablets.
+sheetBar.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='touch'||overlay.classList.contains('hidden'))return;
+  sheetDrag={startY:e.clientY,lastY:e.clientY,lastT:performance.now(),dy:0,active:true,pointerId:e.pointerId};
+  sheetBar.setPointerCapture?.(e.pointerId);
+  sheetBox.classList.add('dragging');overlay.classList.add('sheet-dragging');
+});
+sheetBar.addEventListener('pointermove',e=>{
+  if(!sheetDrag||sheetDrag.pointerId!==e.pointerId)return;
+  const now=performance.now(),dy=Math.max(0,e.clientY-sheetDrag.startY);
+  sheetDrag.dy=dy;sheetDrag.velocity=(e.clientY-sheetDrag.lastY)/Math.max(1,now-sheetDrag.lastT);sheetDrag.lastY=e.clientY;sheetDrag.lastT=now;
+  sheetBox.style.transform='translateY('+dy+'px)';
+});
+sheetBar.addEventListener('pointerup',e=>{
+  if(!sheetDrag||sheetDrag.pointerId!==e.pointerId)return;
+  const quick=(sheetDrag.velocity||0)>.55&&sheetDrag.dy>24, far=sheetDrag.dy>72;
+  sheetDrag=null;
+  if(far||quick)dismissSheetBySwipe();
+  else{sheetBox.classList.remove('dragging');overlay.classList.remove('sheet-dragging');sheetBox.style.transform='translateY(0)';setTimeout(()=>sheetBox.style.transform='',210)}
+});
 let toastTimer=null;
 function showToast(msg,kind='warn'){const t=q('#toast');if(!t)return;t.textContent=msg;t.className='toast '+kind;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.add('hidden'),3800)}
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeSheet()});
