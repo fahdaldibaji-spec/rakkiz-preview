@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.42</title>
+<title>ركّز — موقع تجريبي v0.43</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1852,7 +1852,7 @@ function openManageItems(){
 function openAddGrades(){
   openSheet(`<div class="h2">إدخال درجات ذكي</div><div class="small mt8">حدد الاختبار ودرجته، ثم اختر الطريقة الأنسب لك.</div>
   <div class="label mt16">اسم الاختبار أو التقييم</div><input id="testName" class="field" value="اختبار قصير 1">
-  <div class="label mt12">الدرجة النهائية</div><input id="testMax" class="field" type="number" min=".25" step=".25" value="20">
+  <div class="grid2 mt12"><div><div class="label">نوع الاختبار</div><select id="testType" class="field"><option value="monthly">شهري</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div><div><div class="label">الدرجة النهائية</div><input id="testMax" class="field" type="number" min=".25" step=".25" value="20"></div></div>
   <div class="section-title mt16">طريقة إدخال الدرجات</div>
   <div class="grid2">
     <button class="toolcard" data-source="camera"><strong>تصوير كشف</strong><span>أسماء ودرجات مطبوعة أو مكتوبة</span></button>
@@ -1862,7 +1862,7 @@ function openAddGrades(){
   </div>
   <button class="btn soft mt12" id="manualGrades" style="width:100%">إدخال يدوي داخل ركّز</button>
   <div class="notice mt12">المطابقة تتم داخل الفصل الحالي فقط. ترتيب الأسماء لا يهم، والحالات غير الواضحة فقط تُعرض للمراجعة.</div>`);
-  function meta(){return {name:q('#testName',sheet).value.trim()||'اختبار',max:Number(q('#testMax',sheet).value)||20}}
+  function meta(){return {name:q('#testName',sheet).value.trim()||'اختبار',max:Number(q('#testMax',sheet).value)||20,type:q('#testType',sheet).value||'other'}}
   qa('[data-source]',sheet).forEach(b=>b.onclick=()=>simulateImport(b.dataset.source,meta()));
   q('#manualGrades',sheet).onclick=()=>openManualGrades(meta());
 }
@@ -1876,7 +1876,7 @@ function simulateImport(source,meta){
   <div class="row mt16"><button class="btn soft" id="backImport">رجوع</button><button class="btn primary" id="acceptImport" style="flex:1">اعتماد المطابق فقط</button></div>`;
   q('#backImport',sheet).onclick=openAddGrades;
   q('#acceptImport',sheet).onclick=()=>{
-    currentStudents().forEach((s,i)=>{if(i!==2)state.events.push({id:'e'+Date.now()+i,studentId:s.id,date:state.date,module:'tests',label:meta.name,value:Math.min(meta.max,Math.max(0,meta.max-(i%4)*1.5)),max:meta.max})});
+    currentStudents().forEach((s,i)=>{if(i!==2)state.events.push({id:'e'+Date.now()+i,studentId:s.id,date:state.date,module:'tests',testType:meta.type,label:meta.name,value:Math.min(meta.max,Math.max(0,meta.max-(i%4)*1.5)),max:meta.max})});
     closeSheet();renderStudents();
   }
 }
@@ -1888,14 +1888,14 @@ function openManualGrades(meta){
     let bad=false;
     qa('[data-manual-grade]',sheet).forEach(inp=>{const v=inp.value===''?null:Number(inp.value);if(v!=null&&(v<0||v>meta.max||!Number.isFinite(v)))bad=true});
     if(bad){alert('يوجد رقم خارج الدرجة النهائية المحددة.');return}
-    qa('[data-manual-grade]',sheet).forEach(inp=>{if(inp.value!=='')state.events.push({id:'e'+Date.now()+inp.dataset.manualGrade,studentId:inp.dataset.manualGrade,date:state.date,module:'tests',label:meta.name,value:Number(inp.value),max:meta.max})});
+    qa('[data-manual-grade]',sheet).forEach(inp=>{if(inp.value!=='')state.events.push({id:'e'+Date.now()+inp.dataset.manualGrade,studentId:inp.dataset.manualGrade,date:state.date,module:'tests',testType:meta.type,label:meta.name,value:Number(inp.value),max:meta.max})});
     closeSheet();renderStudents();
   }
 }
 function openManualGradeOne(id){
   const s=state.students.find(x=>x.id===id);
-  openSheet(`<div class="h2">إدخال درجة — ${s.name}</div><div class="grid2 mt12"><div><div class="label">اسم الاختبار</div><input class="field" id="oneName" value="اختبار قصير"></div><div><div class="label">الدرجة النهائية</div><input class="field" id="oneMax" type="number" value="20"></div></div><div class="label mt12">درجة الطالب</div><input class="field" id="oneVal" type="number" step=".25"><button class="btn primary mt16" id="saveOne" style="width:100%">حفظ</button>`);
-  q('#saveOne',sheet).onclick=()=>{const max=Number(q('#oneMax',sheet).value),val=Number(q('#oneVal',sheet).value);if(!Number.isFinite(max)||!Number.isFinite(val)||val<0||val>max)return;state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'tests',label:q('#oneName',sheet).value||'اختبار',value:val,max});closeSheet();renderStudents()}
+  openSheet(`<div class="h2">إدخال درجة — ${s.name}</div><div class="grid2 mt12"><div><div class="label">اسم الاختبار</div><input class="field" id="oneName" value="اختبار قصير"></div><div><div class="label">نوع الاختبار</div><select class="field" id="oneType"><option value="monthly">شهري</option><option value="final">نهائي</option><option value="short" selected>قصير</option><option value="other">أخرى</option></select></div></div><div class="label mt12">الدرجة النهائية</div><input class="field" id="oneMax" type="number" value="20"><div class="label mt12">درجة الطالب</div><input class="field" id="oneVal" type="number" step=".25"><button class="btn primary mt16" id="saveOne" style="width:100%">حفظ</button>`);
+  q('#saveOne',sheet).onclick=()=>{const max=Number(q('#oneMax',sheet).value),val=Number(q('#oneVal',sheet).value);if(!Number.isFinite(max)||!Number.isFinite(val)||val<0||val>max)return;state.events.push({id:'e'+Date.now(),studentId:id,date:state.date,module:'tests',testType:q('#oneType',sheet).value||'other',label:q('#oneName',sheet).value||'اختبار',value:val,max});closeSheet();renderStudents()}
 }
 
 function openNoorImport(){
