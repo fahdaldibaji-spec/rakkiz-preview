@@ -1189,68 +1189,147 @@ function openParentContactReport(studentId){
   q('#pcPrint',sheet).onclick=()=>smartPrintCommon(studentId,'تواصل ولي أمر',()=>'<div class="panel"><div class="section-title">سبب التواصل</div><div>'+q('#pcReason',sheet).value+'</div></div><div class="panel mt12"><div class="section-title">ملخص ما تم</div><div>'+q('#pcDone',sheet).value+'</div></div><div class="panel mt12"><div class="section-title">الإجراء المتفق عليه</div><div>'+q('#pcNext',sheet).value+'</div></div>');
 }
 
-function smartPlanSuggestions(studentId){
-  if(!studentId)return {source:'',issue:'',causes:'',goal:'',strategies:'',activities:'',duration:'أسبوعان',sessions:'4 جلسات قصيرة',family:'',measure:'',recommendations:'',notes:''};
-  const ctx=studentSmartContext(studentId), r=ctx.r;
-  const low=r.itemRows.filter(x=>x.pct<60).map(x=>x.name+' ('+x.pct+'%)');
-  const lowTests=r.tests.filter(e=>Number(e.value)/Number(e.max)<.6).map(e=>(e.label||'اختبار')+' '+Math.round(Number(e.value)/Number(e.max)*100)+'%');
-  const source=[lowTests.length?'نتائج الاختبارات':'',low.length?'التقييمات الصفية':'',ctx.openFollow.length?'المتابعات المسجلة':''].filter(Boolean).join(' + ');
-  const issue=[low.length?'تدنٍ في '+low.join('، '):'',lowTests.length?'نتائج دون حد الإتقان في '+lowTests.join('، '):'',ctx.openFollow.length?'متابعات مفتوحة: '+smartTextList(ctx.openFollow.map(e=>e.label)):''].filter(Boolean).join('؛ ');
-  const causes=issue?'حاجة إلى مزيد من التدريب المتدرج، وتثبيت المفهوم، ورفع عدد فرص التطبيق مع تغذية راجعة مباشرة.':'';
-  const goal=issue?'رفع مستوى إتقان المهارات المتعثرة إلى 60% فأعلى، وتحسين الاستقلالية في أداء المهمة.':'';
-  const strategies=issue?'إعادة شرح مركز، مثال محلول، تدريب متدرج، تعلم فردي أو مجموعة صغيرة، تغذية راجعة فورية.':'';
-  const activities=issue?'ورقة عمل قصيرة، سؤالان متدرجان، نشاط تطبيقي، ثم مهمة تحقق سريعة في نهاية الجلسة.':'';
-  const family=issue?'إشعار الأسرة بالمهارة المستهدفة وتزويدها بتدريب منزلي قصير عند الحاجة.':'';
-  const measure=issue?'قياس قبلي مختصر، متابعة أثناء التنفيذ، ثم قياس بعدي ومقارنة النتيجة السابقة بالجديدة.':'';
-  const recommendations=issue?'الاستمرار في المتابعة حتى ثبات الإتقان، مع تعزيز أي تحسن وتوثيق القياس البعدي.':'';
-  return {source,issue,causes,goal,strategies,activities,duration:'أسبوعان',sessions:'4 جلسات قصيرة',family,measure,recommendations,notes:''};
+
+const remedialLibraries={
+  need:['صعوبة في فهم المفهوم الأساسي','صعوبة في تطبيق المهارة','الحاجة إلى تدريب أكثر على المهارة','ضعف في استدعاء المعرفة السابقة','تذبذب في الأداء','بطء في إنجاز المهمة','الحاجة إلى تثبيت الإتقان'],
+  cause:['قلة التدريب والممارسة','فجوة في المهارات السابقة','الحاجة إلى تبسيط خطوات المهارة','تشتت أثناء التعلم','ضعف في المتابعة المنزلية','الحاجة إلى أمثلة أكثر','عدم ثبات التعلم بعد'],
+  strategy:['إعادة التدريس بطريقة مبسطة','تدريب موجه','التدريس الفردي / مجموعة صغيرة','تجزئة المهارة إلى خطوات قصيرة','النمذجة والمحاكاة','التقويم التكويني المستمر','التعزيز الإيجابي','أمثلة محلولة ثم تدريب مستقل'],
+  activity:['أوراق عمل علاجية متدرجة','تمارين قصيرة مركزة','بطاقات تعلم ومراجعة','أسئلة مشابهة مع تغذية راجعة','نشاط رقمي تفاعلي','نشاط تطبيقي','مهمة أدائية قصيرة','تدريب منزلي'],
+  implementation:['فردي داخل الحصة','مجموعة دعم صغيرة','تدريب موجه بعد الشرح','نشاط علاجي داخل الحصة','واجب علاجي قصير','نشاط رقمي','متابعة منزلية بالتعاون مع الأسرة']
+};
+function remedialOptions(items,selected){
+  return items.map(x=>'<option '+(x===selected?'selected':'')+'>'+x+'</option>').join('');
+}
+function planTypeName(type){
+  return ({remediation:'علاجية',support:'دعم',improvement:'تحسين',enrichment:'إثرائية',followup:'متابعة'})[type]||'علاجية';
+}
+function smartPlanSuggestions(studentId,opts={}){
+  const ctx=studentSmartContext(studentId), r=ctx?.r;
+  const type=opts.type||'remediation';
+  const low=r?r.itemRows.filter(x=>x.pct<60).map(x=>x.name+' ('+x.pct+'%)'):[];
+  const lowTests=r?r.tests.filter(e=>Number(e.value)/Number(e.max)<.6).map(e=>(e.label||'اختبار')+' '+Math.round(Number(e.value)/Number(e.max)*100)+'%'):[];
+  const target=[low.length?'جوانب منخفضة: '+low.join('، '):'',lowTests.length?'اختبارات دون حد الإتقان: '+lowTests.join('، '):'',ctx?.openFollow?.length?'متابعات مفتوحة: '+smartTextList(ctx.openFollow.map(e=>e.label)):''].filter(Boolean).join('؛ ') || opts.need || '';
+  const goal={
+    remediation:'معالجة جوانب التعثر ورفع مستوى الإتقان إلى 60% فأعلى.',
+    support:'تقديم دعم مركز يثبت المهارة ويزيد الاستقلالية في الأداء.',
+    improvement:'تحسين الدقة والسرعة وجودة الإنجاز مقارنة بالأداء السابق.',
+    enrichment:'توسيع تعلم الطالب بمهام أعلى مستوى تعزز الفهم والتطبيق.',
+    followup:'متابعة ثبات التحسن والتحقق من استمرار الأداء في مواقف مختلفة.'
+  }[type];
+  const rec={
+    remediation:'الاستمرار في الخطة حتى تحقق مستوى الإتقان ثم إجراء قياس بعدي.',
+    support:'تقليل الدعم تدريجيًا مع التحقق من استقلالية الطالب.',
+    improvement:'مقارنة الأداء الحالي بالسابق وتوثيق مقدار التحسن.',
+    enrichment:'الانتقال إلى مهمة أعمق أو منتج قابل للتقويم بعد الإنجاز.',
+    followup:'متابعة دورية وتوثيق استمرار التحسن أو الحاجة لإعادة التدخل.'
+  }[type];
+  return {
+    target,
+    need:opts.need||remedialLibraries.need[1],
+    causes:opts.cause||remedialLibraries.cause[0],
+    goal,
+    strategies:opts.strategy||remedialLibraries.strategy[1],
+    activities:opts.activity||remedialLibraries.activity[0],
+    execution:'طريقة التنفيذ: '+(opts.implementation||remedialLibraries.implementation[0])+'، لمدة '+(opts.duration||'أسبوعان')+'، بواقع '+(opts.sessions||'حصتان أسبوعيًا')+'.',
+    pre:r?.testPct||'',
+    follow:'موعد القياس / المتابعة: '+(opts.postTiming||'بعد أسبوعين')+'. التواصل مع الأسرة: '+(opts.family||'عند الحاجة')+'.',
+    recommendations:rec,
+    notes:''
+  };
 }
 function openRemedialPlan(studentId){
   state.tempPlanEvidence=[];
-  const base=reportFormBase(studentId,'الخطة العلاجية الذكية','مبنية على منطق الخطة العلاجية في ركاز: اقتراح تلقائي كامل ثم تعديل المعلم.'), st=base.st, c=base.c;
-  const sug=smartPlanSuggestions(studentId);
+  const base=reportFormBase(studentId,'الخطة العلاجية الذكية','اضبط الخيارات أولًا، ثم اضغط «تعبئة ذكية». يمكنك تعديل أي نص قبل المعاينة والطباعة.');
   openReportSheet(base.html
-    +(studentId?'<div class="smart-strip mt12"><span>قرأ ركّز أداء الطالب وحدد مسودة الخطة تلقائيًا.</span><button id="rpSmartFill">تعبئة ذكية</button></div>':'<div class="notice mt12">طالب خارجي: النموذج جاهز، وتدخل البيانات يدويًا.</div>')
-    +'<div class="form-section"><div class="form-section-title">مصدر القياس والتعثر</div><div class="label">مصدر القياس</div><input class="field" id="rpSource"><div class="label mt8">مظاهر الضعف / جوانب التعثر</div><textarea class="field" id="rpIssue"></textarea><div class="label mt8">الأسباب المحتملة</div><textarea class="field" id="rpCauses"></textarea></div>'
-    +'<div class="form-section"><div class="form-section-title">الهدف والخطة</div><div class="label">الهدف العلاجي</div><textarea class="field" id="rpGoal"></textarea><div class="label mt8">الاستراتيجيات</div><textarea class="field" id="rpStrategies"></textarea><div class="label mt8">الأنشطة العلاجية</div><textarea class="field" id="rpActivities"></textarea></div>'
-    +'<div class="form-section"><div class="form-section-title">المدة والتنفيذ</div><div class="grid2"><div><div class="label">المدة</div><input class="field" id="rpDuration"></div><div><div class="label">عدد الجلسات</div><input class="field" id="rpSessions"></div></div><div class="label mt8">دور الأسرة</div><textarea class="field" id="rpFamily"></textarea></div>'
-    +'<div class="form-section"><div class="form-section-title">القياس والمتابعة</div><div class="label">أداة القياس / إعادة القياس</div><textarea class="field" id="rpMeasure"></textarea><div class="label mt8">التوصيات والمتابعة</div><textarea class="field" id="rpRecommendations"></textarea><div class="label mt8">ملاحظات المعلم</div><textarea class="field" id="rpNotes"></textarea></div>'
-    +'<div class="form-section"><div class="form-section-title">شواهد مؤقتة</div><input class="field" id="rpEvidence" type="file" accept="image/*" capture="environment" multiple><div class="small mt8">التصوير أو الرفع للطباعة فقط. لا تُحفظ الصور في حساب الطالب أو السحابة.</div><div id="rpEvidenceList" class="small mt8"></div></div>'
-    +'<button class="btn primary mt16" id="rpToPrint" style="width:100%">معاينة الخطة والطباعة</button>');
+    +'<div class="form-section"><div class="form-section-title">1) نوع الخطة ومصدرها</div>'
+    +'<div class="grid2"><div><div class="label">نوع / فكرة الخطة</div><select class="field" id="rpType"><option value="remediation">علاجية</option><option value="support">دعم</option><option value="improvement">تحسين</option><option value="enrichment">إثرائية</option><option value="followup">متابعة</option></select></div>'
+    +'<div><div class="label">مصدر القياس</div><select class="field" id="rpSourceChoice"><option>نتائج الاختبارات</option><option>التقييمات الصفية</option><option>المتابعات المسجلة</option><option>الواجبات</option><option>المشاركة</option><option>السلوك</option><option>ملاحظة صفية</option><option>قياس يدوي</option></select></div></div>'
+    +'<div class="grid2 mt8"><div><div class="label">طريقة التنفيذ</div><select class="field" id="rpImplementation">'+remedialOptions(remedialLibraries.implementation,'فردي داخل الحصة')+'</select></div>'
+    +'<div><div class="label">حالة الخطة</div><select class="field" id="rpStatus"><option value="open">قيد التنفيذ</option><option value="completed">مكتملة</option><option value="closed">مغلقة</option></select></div></div></div>'
+    +'<div class="form-section"><div class="form-section-title">2) اختيارات تربوية</div>'
+    +'<div class="grid2"><div><div class="label">مظهر الضعف / الحاجة</div><select class="field" id="rpNeedChoice">'+remedialOptions(remedialLibraries.need,'صعوبة في تطبيق المهارة')+'</select></div><div><div class="label">السبب المحتمل</div><select class="field" id="rpCauseChoice">'+remedialOptions(remedialLibraries.cause,'قلة التدريب والممارسة')+'</select></div></div>'
+    +'<div class="grid2 mt8"><div><div class="label">الاستراتيجية</div><select class="field" id="rpStrategyChoice">'+remedialOptions(remedialLibraries.strategy,'تدريب موجه')+'</select></div><div><div class="label">النشاط / المهمة</div><select class="field" id="rpActivityChoice">'+remedialOptions(remedialLibraries.activity,'أوراق عمل علاجية متدرجة')+'</select></div></div></div>'
+    +'<div class="form-section"><div class="form-section-title">3) المدة والمتابعة</div>'
+    +'<div class="grid2"><div><div class="label">مدة الخطة</div><select class="field" id="rpDurationChoice"><option>أسبوع واحد</option><option selected>أسبوعان</option><option>3 أسابيع</option><option>4 أسابيع</option><option>حتى تحقق الهدف</option><option>حسب الحاجة</option></select></div>'
+    +'<div><div class="label">جلسات الدعم</div><select class="field" id="rpSessionsChoice"><option>حصة واحدة أسبوعيًا</option><option selected>حصتان أسبوعيًا</option><option>3 حصص أسبوعيًا</option><option>متابعة يومية قصيرة</option><option>حسب الجدول المتاح</option></select></div></div>'
+    +'<div class="grid2 mt8"><div><div class="label">التواصل مع الأسرة</div><select class="field" id="rpFamilyChoice"><option selected>عند الحاجة</option><option>اتصال هاتفي</option><option>رسالة / منصة</option><option>لقاء حضوري</option><option>لا يلزم</option></select></div>'
+    +'<div><div class="label">موعد القياس / المتابعة</div><select class="field" id="rpPostTiming"><option>بعد أسبوع</option><option selected>بعد أسبوعين</option><option>بعد انتهاء الخطة</option><option>متابعة دورية</option><option>يحدد لاحقًا</option></select></div></div></div>'
+    +'<div class="smart-strip mt12"><span>اختر ما يناسب الحالة، ثم دع ركّز يبني المسودة.</span><button id="rpSmartFill">تعبئة ذكية</button></div>'
+    +'<div class="form-section"><div class="form-section-title">4) المسودة القابلة للتعديل</div>'
+    +'<div class="label">الهدف / المهارة / المشكلة المستهدفة</div><textarea class="field" id="rpTarget" placeholder="تُعبأ ذكيًا ويمكن تعديلها يدويًا"></textarea>'
+    +'<div class="label mt8">مظاهر الضعف / الحاجة</div><textarea class="field" id="rpNeed"></textarea>'
+    +'<div class="label mt8">الأسباب المحتملة</div><textarea class="field" id="rpCauses"></textarea>'
+    +'<div class="label mt8">الهدف العلاجي</div><textarea class="field" id="rpGoal"></textarea>'
+    +'<div class="label mt8">الاستراتيجيات</div><textarea class="field" id="rpStrategies"></textarea>'
+    +'<div class="label mt8">الأنشطة والمهام</div><textarea class="field" id="rpActivities"></textarea>'
+    +'<div class="label mt8">التنفيذ</div><textarea class="field" id="rpExecution"></textarea>'
+    +'<div class="grid2 mt8"><div><div class="label">القياس القبلي %</div><input class="field" id="rpPre" type="number" min="0" max="100" step=".1"></div><div><div class="label">القياس البعدي %</div><input class="field" id="rpPostScore" type="number" min="0" max="100" step=".1"></div></div>'
+    +'<div class="label mt8">المتابعة والقياس</div><textarea class="field" id="rpFollow"></textarea>'
+    +'<div class="label mt8">التوصيات</div><textarea class="field" id="rpRecommendations"></textarea>'
+    +'<div class="label mt8">ملاحظات خاصة — اختياري</div><textarea class="field" id="rpNotes"></textarea></div>'
+    +'<div class="form-section"><div class="form-section-title">5) شواهد مؤقتة</div><input class="field" id="rpEvidence" type="file" accept="image/*" capture="environment" multiple><div class="small mt8">تستخدم الصور في المعاينة والطباعة فقط ثم تُمسح من الجلسة.</div><div id="rpEvidenceList" class="small mt8"></div></div>'
+    +'<button class="btn primary mt16" id="rpToPreview" style="width:100%">معاينة الخطة قبل الطباعة</button>');
   wireSmartClose();
-  function fill(){
-    const x=smartPlanSuggestions(studentId);
-    q('#rpSource',sheet).value=x.source;q('#rpIssue',sheet).value=x.issue;q('#rpCauses',sheet).value=x.causes;q('#rpGoal',sheet).value=x.goal;q('#rpStrategies',sheet).value=x.strategies;q('#rpActivities',sheet).value=x.activities;q('#rpDuration',sheet).value=x.duration;q('#rpSessions',sheet).value=x.sessions;q('#rpFamily',sheet).value=x.family;q('#rpMeasure',sheet).value=x.measure;q('#rpRecommendations',sheet).value=x.recommendations;q('#rpNotes',sheet).value=x.notes;
+
+  function selections(){
+    return {
+      type:q('#rpType',sheet).value,
+      source:q('#rpSourceChoice',sheet).value,
+      implementation:q('#rpImplementation',sheet).value,
+      need:q('#rpNeedChoice',sheet).value,
+      cause:q('#rpCauseChoice',sheet).value,
+      strategy:q('#rpStrategyChoice',sheet).value,
+      activity:q('#rpActivityChoice',sheet).value,
+      duration:q('#rpDurationChoice',sheet).value,
+      sessions:q('#rpSessionsChoice',sheet).value,
+      family:q('#rpFamilyChoice',sheet).value,
+      postTiming:q('#rpPostTiming',sheet).value
+    };
   }
-  fill(); if(q('#rpSmartFill',sheet))q('#rpSmartFill',sheet).onclick=fill;
+  q('#rpSmartFill',sheet).onclick=()=>{
+    const x=smartPlanSuggestions(studentId,selections());
+    q('#rpTarget',sheet).value=x.target;
+    q('#rpNeed',sheet).value=x.need;
+    q('#rpCauses',sheet).value=x.causes;
+    q('#rpGoal',sheet).value=x.goal;
+    q('#rpStrategies',sheet).value=x.strategies;
+    q('#rpActivities',sheet).value=x.activities;
+    q('#rpExecution',sheet).value=x.execution;
+    q('#rpPre',sheet).value=x.pre||'';
+    q('#rpFollow',sheet).value=x.follow;
+    q('#rpRecommendations',sheet).value=x.recommendations;
+    showToast('تمت تعبئة مسودة الخطة. عدّل ما تحتاجه قبل المعاينة.');
+  };
   q('#rpEvidence',sheet).onchange=e=>{
     state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));
     state.tempPlanEvidence=[...e.target.files].map(f=>URL.createObjectURL(f));
     q('#rpEvidenceList',sheet).textContent=state.tempPlanEvidence.length?'تم اختيار '+state.tempPlanEvidence.length+' صورة مؤقتة.':'';
   };
-  q('#rpToPrint',sheet).onclick=()=>{
+  q('#rpToPreview',sheet).onclick=()=>{
     const data={
       name:q('#srName',sheet).value.trim(),grade:q('#srGrade',sheet).value.trim(),className:q('#srClass',sheet).value.trim(),
-      source:q('#rpSource',sheet).value.trim(),issue:q('#rpIssue',sheet).value.trim(),causes:q('#rpCauses',sheet).value.trim(),goal:q('#rpGoal',sheet).value.trim(),
-      strategies:q('#rpStrategies',sheet).value.trim(),activities:q('#rpActivities',sheet).value.trim(),duration:q('#rpDuration',sheet).value.trim(),sessions:q('#rpSessions',sheet).value.trim(),
-      family:q('#rpFamily',sheet).value.trim(),measure:q('#rpMeasure',sheet).value.trim(),recommendations:q('#rpRecommendations',sheet).value.trim(),notes:q('#rpNotes',sheet).value.trim()
+      type:q('#rpType',sheet).value,status:q('#rpStatus',sheet).selectedOptions[0].textContent,
+      target:q('#rpTarget',sheet).value.trim(),need:q('#rpNeed',sheet).value.trim(),causes:q('#rpCauses',sheet).value.trim(),
+      goal:q('#rpGoal',sheet).value.trim(),strategies:q('#rpStrategies',sheet).value.trim(),activities:q('#rpActivities',sheet).value.trim(),
+      execution:q('#rpExecution',sheet).value.trim(),pre:q('#rpPre',sheet).value,post:q('#rpPostScore',sheet).value,
+      follow:q('#rpFollow',sheet).value.trim(),recommendations:q('#rpRecommendations',sheet).value.trim(),notes:q('#rpNotes',sheet).value.trim()
     };
     if(!data.name){showToast('اكتب اسم الطالب أولًا.');return}
+    if(!data.target){showToast('اضغط «تعبئة ذكية» أو اكتب الهدف المستهدف أولًا.');return}
     openSignatureStep(studentId,'remedial',action=>{
       if(action==='back'){openRemedialPlan(studentId);return}
-      const fakeClass={grade:data.grade,name:data.className,subject:''};
-      const body='<div class="panel"><div class="section-title">مصدر القياس</div><div>'+(data.source||'—')+'</div></div>'
-        +'<div class="panel mt12"><div class="section-title">مظاهر الضعف / جوانب التعثر</div><div>'+(data.issue||'—')+'</div></div>'
-        +'<div class="panel mt12"><div class="section-title">الأسباب المحتملة</div><div>'+(data.causes||'—')+'</div></div>'
+      const body='<div class="grid2"><div class="panel"><div class="section-title">نوع الخطة</div><div>خطة '+planTypeName(data.type)+'</div></div><div class="panel"><div class="section-title">حالة الخطة</div><div>'+data.status+'</div></div></div>'
+        +'<div class="panel mt12"><div class="section-title">الهدف / المهارة المستهدفة</div><div>'+data.target+'</div></div>'
+        +'<div class="grid2 mt12"><div class="panel"><div class="section-title">مظاهر الحاجة</div><div>'+(data.need||'—')+'</div></div><div class="panel"><div class="section-title">الأسباب المحتملة</div><div>'+(data.causes||'—')+'</div></div></div>'
         +'<div class="panel mt12"><div class="section-title">الهدف العلاجي</div><div>'+(data.goal||'—')+'</div></div>'
-        +'<div class="grid2 mt12"><div class="panel"><div class="section-title">الاستراتيجيات</div><div>'+(data.strategies||'—')+'</div></div><div class="panel"><div class="section-title">الأنشطة</div><div>'+(data.activities||'—')+'</div></div></div>'
-        +'<div class="grid2 mt12"><div class="panel"><div class="section-title">المدة</div><div>'+(data.duration||'—')+'</div></div><div class="panel"><div class="section-title">الجلسات</div><div>'+(data.sessions||'—')+'</div></div></div>'
-        +'<div class="panel mt12"><div class="section-title">دور الأسرة</div><div>'+(data.family||'—')+'</div></div>'
-        +'<div class="panel mt12"><div class="section-title">القياس وإعادة القياس</div><div>'+(data.measure||'—')+'</div></div>'
-        +'<div class="panel mt12"><div class="section-title">التوصيات والمتابعة</div><div>'+(data.recommendations||'—')+'</div></div>'
-        +(data.notes?'<div class="panel mt12"><div class="section-title">ملاحظات المعلم</div><div>'+data.notes+'</div></div>':'');
-      openPrintWindow('الخطة العلاجية الذكية',data.name,fakeClass,body,state.reportSignatures,state.tempPlanEvidence);
-      setTimeout(()=>{state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));state.tempPlanEvidence=[]},1500);
+        +'<div class="grid2 mt12"><div class="panel"><div class="section-title">الاستراتيجيات</div><div>'+(data.strategies||'—')+'</div></div><div class="panel"><div class="section-title">الأنشطة والمهام</div><div>'+(data.activities||'—')+'</div></div></div>'
+        +'<div class="panel mt12"><div class="section-title">التنفيذ</div><div>'+(data.execution||'—')+'</div></div>'
+        +'<div class="grid2 mt12"><div class="panel"><div class="section-title">القياس القبلي</div><div>'+(data.pre?data.pre+'%':'—')+'</div></div><div class="panel"><div class="section-title">القياس البعدي</div><div>'+(data.post?data.post+'%':'—')+'</div></div></div>'
+        +'<div class="panel mt12"><div class="section-title">المتابعة والقياس</div><div>'+(data.follow||'—')+'</div></div>'
+        +'<div class="panel mt12"><div class="section-title">التوصيات</div><div>'+(data.recommendations||'—')+'</div></div>'
+        +(data.notes?'<div class="panel mt12"><div class="section-title">ملاحظات خاصة</div><div>'+data.notes+'</div></div>':'');
+      openPrintWindow('الخطة '+planTypeName(data.type),data.name,{grade:data.grade,name:data.className,subject:''},body,state.reportSignatures,state.tempPlanEvidence);
+      setTimeout(()=>{state.tempPlanEvidence.forEach(x=>URL.revokeObjectURL(x));state.tempPlanEvidence=[]},2500);
       closeSheet();
     });
   };
