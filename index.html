@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.47</title>
+<title>ركّز — موقع تجريبي v0.48</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -56,6 +56,8 @@ button{cursor:pointer}
 .toolcard{background:linear-gradient(145deg,#fff,#f4f9f7);border-color:#d5e5e2;box-shadow:0 4px 14px rgba(15,79,77,.035)}
 .toolcard:nth-child(3n+2){background:linear-gradient(145deg,#fff,#f8f1eb)}
 .classcard{background:linear-gradient(145deg,#fff,#eef7f4);border-right:4px solid rgba(15,79,77,.55)}
+.subject-group{margin-bottom:16px;border:1px solid #d9e7e4;border-radius:18px;padding:10px;background:linear-gradient(145deg,#fbfdfc,#f7f1eb)}
+.subject-group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 4px 9px}.subject-group-head strong{font-family:"IBM Plex Sans Arabic",Tahoma,sans-serif;color:var(--green);font-size:16px}.subject-group-head span{display:block;font-size:11.5px;color:var(--muted);font-weight:700}.subject-badge{padding:4px 8px!important;border-radius:999px;background:var(--green3);color:var(--green)!important}.subject-class-list{display:flex;flex-direction:column;gap:8px}.report-picker-subject{min-width:100%;padding:7px 0}.report-picker-subject>strong{display:block;margin-bottom:6px;color:var(--green);font-size:13px}.report-two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.report-full{grid-column:1/-1}@media(max-width:360px){.report-two-col{grid-template-columns:1fr}}
 .panel{background:linear-gradient(155deg,#fff,#f8fbfa);border-color:#d7e5e2}
 .form-section{background:linear-gradient(155deg,#fff,#f7fbfa);border-color:#d8e6e3}
 .student-report-card,.report-type,.report-lib-card{box-shadow:0 5px 15px rgba(15,79,77,.035)}
@@ -289,9 +291,9 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
 
     <section data-view="prepare" class="hidden">
       <div class="h1">التحضير</div>
-      <div class="small mt8">اختر الفصل الذي تريد فتحه.</div>
+      <div class="small mt8">اختر المادة أولًا، ثم الفصل الذي تريد فتحه.</div>
       <div id="prepareCurrentLesson" class="mt12"></div>
-      <div class="section-title mt16">فصولي</div>
+      <div class="section-title mt16">موادي وفصولي</div>
       <div id="prepareClasses"></div>
     </section>
 
@@ -466,19 +468,23 @@ const state={
     {id:'s6',name:'مازن علي',classId:'c1',code:'A19',nationalId:'10•••••247',noorStudentId:'N1006',source:'noor',perf:88},
     {id:'s7',name:'تركي محمد',classId:'c2',code:'T11',perf:80},
     {id:'s8',name:'يوسف خالد',classId:'c2',code:'Y24',perf:84},
-    {id:'s9',name:'علي حسن',classId:'c3',code:'Q16',perf:76}
+    {id:'s9',name:'علي حسن',classId:'c3',code:'Q16',perf:76},
+    {id:'s10',name:'سعد محمد',classId:'c4',code:'D12',perf:81},
+    {id:'s11',name:'نواف علي',classId:'c4',code:'F18',perf:74}
   ],
   classes:[
     {id:'c1',grade:'ثالث متوسط',name:'3/أ',subject:'العلوم'},
     {id:'c2',grade:'ثالث متوسط',name:'3/ب',subject:'العلوم'},
-    {id:'c3',grade:'ثاني متوسط',name:'2/أ',subject:'العلوم'}
+    {id:'c3',grade:'ثاني متوسط',name:'2/أ',subject:'العلوم'},
+    {id:'c4',grade:'أول متوسط',name:'1/ب',subject:'الرياضيات'}
   ],
   schedule:[
     {id:'l1',day:4,period:1,start:'08:00',end:'08:45',classId:'c1',subject:'العلوم'},
     {id:'l2',day:4,period:2,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'},
     {id:'l3',day:4,period:3,start:'10:00',end:'10:45',classId:'c3',subject:'العلوم'},
     {id:'l4',day:0,period:1,start:'08:00',end:'08:45',classId:'c1',subject:'العلوم'},
-    {id:'l5',day:1,period:2,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'}
+    {id:'l5',day:1,period:2,start:'09:00',end:'09:45',classId:'c2',subject:'العلوم'},
+    {id:'l6',day:2,period:4,start:'10:45',end:'11:30',classId:'c4',subject:'الرياضيات'}
   ],
   scheduleSettings:{notify:false,before:5},
   attendance:{},
@@ -773,6 +779,34 @@ function openScheduleManager(){
 }
 function openEditLesson(id){const l=state.schedule.find(x=>x.id===id);if(!l)return;openSheet(`<div class="h2">تعديل الحصة</div><div class="grid2 mt12"><select class="field" id="eDay">${dayNames.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select><select class="field" id="ePeriod">${periodOptions(l.period||1)}</select></div><div class="label mt8">الفصل</div><select class="field" id="eClass">${state.classes.map(c=>`<option value="${c.id}">${c.grade} — ${c.name}</option>`).join('')}</select><div class="grid2 mt8"><input class="field" id="eStart" type="time" value="${l.start}"><input class="field" id="eEnd" type="time" value="${l.end}"></div><input class="field mt8" id="eSubject" value="${l.subject}"><div class="row mt16"><button class="btn soft" id="cancelEditLesson">إلغاء</button><button class="btn primary" id="saveEditLesson" style="flex:1">حفظ التعديل</button></div>`);q('#eDay',sheet).value=String(l.day);q('#eClass',sheet).value=l.classId;q('#cancelEditLesson',sheet).onclick=()=>{closeSheet();openScheduleManager()};q('#saveEditLesson',sheet).onclick=()=>{const start=q('#eStart',sheet).value,end=q('#eEnd',sheet).value;if(minutesOf(end)<=minutesOf(start))return;l.day=Number(q('#eDay',sheet).value);l.period=Number(q('#ePeriod',sheet).value);l.classId=q('#eClass',sheet).value;l.start=start;l.end=end;l.subject=q('#eSubject',sheet).value.trim()||'المادة';saveSchedule();closeSheet();renderLessonHero();openScheduleManager()}}
 
+function assignedSubjects(){
+  const map=new Map();
+  state.classes.forEach(cls=>{
+    const subject=(cls.subject||'بدون مادة').trim()||'بدون مادة';
+    if(!map.has(subject))map.set(subject,[]);
+    map.get(subject).push(cls);
+  });
+  return [...map.entries()].map(([subject,classes])=>({subject,classes}));
+}
+function classSubject(classId){
+  return state.classes.find(c=>c.id===classId)?.subject||'بدون مادة';
+}
+function subjectClassGroupsHtml(buttonAttr){
+  return assignedSubjects().map(group=>{
+    const totalStudents=group.classes.reduce((sum,cls)=>sum+state.students.filter(st=>st.classId===cls.id).length,0);
+    return `<div class="subject-group">
+      <div class="subject-group-head"><div><strong>${group.subject}</strong><span>${group.classes.length} فصول · ${totalStudents} طلاب</span></div><span class="subject-badge">مادة</span></div>
+      <div class="subject-class-list">${group.classes.map(cls=>{
+        const count=state.students.filter(st=>st.classId===cls.id).length;
+        const lessons=state.schedule.filter(l=>l.classId===cls.id && (l.subject||cls.subject)===group.subject).length;
+        return `<button class="card classcard" ${buttonAttr}="${cls.id}" style="width:100%;text-align:right">
+          <div class="row between"><div><div class="h2">${cls.grade} — ${cls.name}</div><div class="small">${count} طلاب${lessons?` · ${lessons} حصص بالجدول`:''}</div></div><div class="num">›</div></div>
+        </button>`;
+      }).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
 function renderPrepareChooser(){
   const currentBox=q('#prepareCurrentLesson'), list=q('#prepareClasses');
   if(!currentBox||!list)return;
@@ -788,16 +822,7 @@ function renderPrepareChooser(){
   }else{
     currentBox.innerHTML='';
   }
-  list.innerHTML=state.classes.map(c=>{
-    const count=state.students.filter(st=>st.classId===c.id).length;
-    const lessons=state.schedule.filter(l=>l.classId===c.id).length;
-    return `<button class="card classcard" data-prepare-class="${c.id}" style="width:100%;text-align:right;margin-bottom:10px">
-      <div class="row between">
-        <div><div class="h2">${c.grade} — ${c.name}</div><div class="small">${c.subject} · ${count} طلاب${lessons?` · ${lessons} حصص بالجدول`:''}</div></div>
-        <div class="num">›</div>
-      </div>
-    </button>`;
-  }).join('');
+  list.innerHTML=subjectClassGroupsHtml('data-prepare-class');
   qa('[data-prepare-class]',q('[data-view="prepare"]')).forEach(b=>b.onclick=()=>{state.classId=b.dataset.prepareClass;showView('followup')});
 }
 
@@ -1206,11 +1231,11 @@ function openStudentEvaluation(id,main,sub){
   q('#evalCard',sheet).onclick=()=>{closeSheet();openStudentCard(id)};
   if(q('#evalAddGrade',sheet))q('#evalAddGrade',sheet).onclick=()=>openManualGradeOne(id);
 }
-function lessonTitleKey(){return [state.classId,state.date].join('|')}
+function lessonTitleKey(){return classSubject(state.classId)+'|'+state.classId+'|'+state.date}
 function getLessonTitle(){return state.lessonTitles[lessonTitleKey()]||''}
 function openLessonTitleEditor(){
   const c=state.classes.find(x=>x.id===state.classId);
-  openSheet(`<div class="h2">اسم الدرس</div><div class="small mt8">${c?`${c.grade} — ${c.name}`:''} · ${state.date}</div>
+  openSheet(`<div class="h2">اسم الدرس</div><div class="small mt8">${c?`${c.subject} · ${c.grade} — ${c.name}`:''} · ${state.date}</div>
     <div class="label mt16">اكتب اسم الدرس</div>
     <input class="field" id="lessonTitleInput" maxlength="120" placeholder="مثال: الخلية وتركيبها" value="${getLessonTitle().replace(/"/g,'&quot;')}">
     <div class="row mt16"><button class="btn soft" id="cancelLessonTitle">إلغاء</button><button class="btn primary" id="saveLessonTitle" style="flex:1">حفظ</button></div>`);
@@ -1223,7 +1248,7 @@ function openLessonTitleEditor(){
 }
 function renderFollowup(){
   const c=state.classes.find(x=>x.id===state.classId);
-  q('#followupClassTitle').textContent=c?`${c.grade} — ${c.name}`:'الفصل';
+  q('#followupClassTitle').textContent=c?`${c.subject} · ${c.grade} — ${c.name}`:'المادة والفصل';
   q('#lessonTitleText').textContent=getLessonTitle()||'إضافة اسم الدرس';
   ensureAttendanceDay();renderDate();renderModuleTabs();renderTools();renderStudents()
 }
@@ -1459,7 +1484,7 @@ function openInternalStudentPicker(type){
   openReportSheet('<div class="h2">اختر الطالب</div><div class="chips mt12" id="pickerClasses"></div><div id="pickerStudents" class="mt12"></div>');
   let cid=state.reportClassId||state.classes[0]?.id;
   function draw(){
-    q('#pickerClasses',sheet).innerHTML=state.classes.map(c=>'<button class="chip '+(c.id===cid?'active':'')+'" data-pick-class="'+c.id+'">'+c.grade+' — '+c.name+'</button>').join('');
+    q('#pickerClasses',sheet).innerHTML=assignedSubjects().map(g=>'<div class="report-picker-subject"><strong>'+g.subject+'</strong><div class="chips">'+g.classes.map(c=>'<button class="chip '+(c.id===cid?'active':'')+'" data-pick-class="'+c.id+'">'+c.grade+' — '+c.name+'</button>').join('')+'</div></div>').join('');
     const sts=state.students.filter(st=>st.classId===cid);
     q('#pickerStudents',sheet).innerHTML=sts.length?sts.map(st=>'<button class="student" style="width:100%;border:0;background:transparent;text-align:right" data-pick-student="'+st.id+'"><div class="row between"><div><div class="sname">'+st.name+'</div><div class="small">الأداء '+(st.perf||0)+'/100</div></div><span class="badge">اختيار</span></div></button>').join(''):'<div class="small">لا يوجد طلاب في هذا الفصل.</div>';
     qa('[data-pick-class]',sheet).forEach(b=>b.onclick=()=>{cid=b.dataset.pickClass;state.reportClassId=cid;draw()});
@@ -1903,7 +1928,7 @@ function openStudentReferral(studentId){
         state.events.push({id:'e'+Date.now(),studentId,date:state.date,module:'note',label:noteLabel,value:0,follow:false,reportType:'referral',createdAt:new Date().toISOString()});
       }
       const fakeClass={grade:data.grade,name:data.className,subject:''};
-      const body='<div class="panel"><div class="section-title">جهة التحويل</div><div>'+data.to+'</div></div><div class="panel mt12"><div class="section-title">سبب التحويل</div><div>'+data.reason+'</div></div><div class="panel mt12"><div class="section-title">ما تم قبل التحويل</div><div>'+(data.actions||'—')+'</div></div><div class="panel mt12"><div class="section-title">المطلوب من جهة التحويل</div><div>'+(data.request||'—')+'</div></div>';
+      const body='<div class="report-two-col"><div class="panel"><div class="section-title">جهة التحويل</div><div>'+data.to+'</div></div><div class="panel"><div class="section-title">تاريخ التحويل</div><div>'+state.date+'</div></div></div><div class="panel mt12 report-full"><div class="section-title">سبب التحويل</div><div>'+data.reason+'</div></div><div class="panel mt12 report-full"><div class="section-title">ما تم قبل التحويل</div><div>'+(data.actions||'—')+'</div></div><div class="panel mt12 report-full"><div class="section-title">المطلوب من جهة التحويل</div><div>'+(data.request||'—')+'</div></div>';
       openPrintWindow('تحويل طالب',data.name,fakeClass,body,state.reportSignatures,[]);
       closeSheet();renderStudents();
     });
@@ -2058,14 +2083,14 @@ const importNoorBtn=q('#importNoorBtn');if(importNoorBtn)importNoorBtn.onclick=o
 
 function renderClasses(){
   const box=q('#classesGrid');
-  box.innerHTML=state.classes.map(c=>{const n=state.students.filter(s=>s.classId===c.id).length;return `<button class="card classcard" style="width:100%;text-align:right;margin-bottom:10px" data-open-class="${c.id}"><div class="row between"><div><div class="h2">${c.grade} — ${c.name}</div><div class="small">${c.subject}</div></div><div class="num">${n}</div></div></button>`}).join('');
+  box.innerHTML=subjectClassGroupsHtml('data-open-class');
   qa('[data-open-class]',box).forEach(b=>b.onclick=()=>openClass(b.dataset.openClass));
   q('#classDetail').classList.add('hidden');
 }
 function openClass(cid){
   const c=state.classes.find(x=>x.id===cid), sts=state.students.filter(s=>s.classId===cid), box=q('#classDetail');
   box.classList.remove('hidden');
-  box.innerHTML=`<div class="card pad"><div class="row between"><div><div class="h2">${c.grade} — ${c.name}</div><div class="small">${sts.length} طلاب</div></div><button class="btn primary" id="addStudent">+ طالب</button></div>
+  box.innerHTML=`<div class="card pad"><div class="row between"><div><div class="h2">${c.grade} — ${c.name}</div><div class="small">${c.subject} · ${sts.length} طلاب</div></div><button class="btn primary" id="addStudent">+ طالب</button></div>
   <div class="mt12">${sts.map(s=>`<div class="student"><div class="row between"><div><div class="sname">${s.name}</div><div class="meta">الكود ${s.code||'—'}${s.nationalId?` · السجل ${s.nationalId}`:''}</div></div><button class="btn soft" style="min-height:36px" data-edit-student="${s.id}">إدارة</button></div></div>`).join('')||'<div class="small">لا يوجد طلاب.</div>'}</div>
   <button class="btn gold mt12" id="manageCodes" style="width:100%">إدارة أكواد الطلاب</button></div>`;
   q('#addStudent').onclick=()=>openAddStudent(cid);
