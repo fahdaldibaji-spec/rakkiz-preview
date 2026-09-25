@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ركّز — موقع تجريبي v0.69</title>
+<title>ركّز — موقع تجريبي v0.70</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -432,10 +432,7 @@ textarea.field{padding:10px 12px;min-height:86px;resize:vertical}
         <div class="row between"><div><strong id="accountTeacherName">أحمد</strong><div class="small mt8">اسم الحساب المستخدم تلقائيًا في التنبيهات والتقارير.</div></div><span class="badge">حساب المعلم</span></div>
       </div>
       <div class="card pad mt12">
-        <div class="row between"><div><strong>الجدول والحصص</strong><div class="small mt8">يعرض ركّز الحصة المناسبة تلقائيًا حسب اليوم والوقت.</div></div><button class="btn brown" id="accountScheduleBtn" style="min-height:38px">إدارة</button></div>
-      </div>
-      <div class="card pad mt12">
-        <div class="row between"><div><strong>تقويم المدرسة</strong><div class="small mt8" id="schoolCalendarSummary">أيام الدراسة والإجازات</div></div><button class="btn brown" id="schoolCalendarBtn" style="min-height:38px">إدارة</button></div>
+        <div class="row between"><div><strong>الجدول والحصص</strong><div class="small mt8">اختياري — لبطاقة الحصة في الرئيسية والتنبيه فقط.</div></div><button class="btn brown" id="accountScheduleBtn" style="min-height:38px">إدارة</button></div>
       </div>
       <div class="card pad mt12">
         <div class="row between">
@@ -524,7 +521,7 @@ const state={
   ],
   currentUser:{id:'teacher-demo',name:'أحمد',source:'account'},
   scheduleSettings:{notify:false,before:5},
-  schoolCalendar:{countryCode:'SA',weekStartsOn:0,workdays:[0,1,2,3,4],holidays:[]},
+  schoolContext:{countryCode:'SA',weekStartsOn:0,calendarSource:'auto'},
   attendance:{},
   attendanceGrade:{max:10,mode:'decrease',present:0,absent:-1,late:-0.5,excused:0},
   events:[],
@@ -574,13 +571,6 @@ function qa(s,r=app){return [...r.querySelectorAll(s)]}
 function saveReportPrefs(){
   try{localStorage.setItem('rakkiz_report_prefs_v1',JSON.stringify({branding:state.reportBranding,signatures:state.reportSignatures}))}catch{}
 }
-function saveSchoolCalendar(){try{localStorage.setItem('rakkiz_school_calendar_v1',JSON.stringify(state.schoolCalendar))}catch{}}
-function loadSchoolCalendar(){
-  try{
-    const x=JSON.parse(localStorage.getItem('rakkiz_school_calendar_v1')||'null');
-    if(x)state.schoolCalendar={...state.schoolCalendar,...x,workdays:Array.isArray(x.workdays)?x.workdays:state.schoolCalendar.workdays,holidays:Array.isArray(x.holidays)?x.holidays:[]};
-  }catch{}
-}
 function loadReportPrefs(){
   try{
     const x=JSON.parse(localStorage.getItem('rakkiz_report_prefs_v1')||'null');
@@ -588,14 +578,9 @@ function loadReportPrefs(){
     if(x?.signatures)state.reportSignatures={...state.reportSignatures,...x.signatures};
   }catch{}
 }
-loadReportPrefs();loadSchoolCalendar();
+loadReportPrefs();
 function renderAccount(){
   const nameEl=q('#accountTeacherName');if(nameEl)nameEl.textContent=teacherDisplayName();
-  const calEl=q('#schoolCalendarSummary');
-  if(calEl){
-    const cal=schoolCalendar(),days=(cal.workdays||[]).slice().sort((a,b)=>a-b).map(d=>dayNames[d]).join('، ');
-    calEl.textContent=days+' · '+(cal.holidays||[]).length+' إجازة مضافة';
-  }
   const el=q('#reportSettingsSummary');if(!el)return;
   const b=state.reportBranding, parts=[];
   if(b.showMinistry&&b.ministryLogo)parts.push('شعار الوزارة');
@@ -635,35 +620,6 @@ function addTempEvidenceFiles(files){
   picked.slice(0,remaining).forEach(f=>state.tempPlanEvidence.push(URL.createObjectURL(f)));
   if(picked.length>remaining)showToast('الحد الأقصى 4 صور للشواهد.');
 }
-function openSchoolCalendarSettings(){
-  const cal=schoolCalendar();
-  openSheet('<div class="row between"><div><div class="h2">تقويم المدرسة</div><div class="small mt8">يستخدمه ركّز للحضور الأسبوعي والإجازات.</div></div><button class="iconbtn" id="schoolCalClose">×</button></div>'
-    +'<div class="section-title mt16">أيام الدراسة</div>'
-    +'<div class="chips" id="schoolWorkdays">'+dayNames.map((name,i)=>'<button class="chip '+((cal.workdays||[]).includes(i)?'active':'')+'" data-school-day="'+i+'">'+name+'</button>').join('')+'</div>'
-    +'<div class="notice mt12">السعودية افتراضيًا: الأحد إلى الخميس. يمكن للمدرسة تغييره إلى 5 أو 6 أو 7 أيام حسب نظامها.</div>'
-    +'<div class="section-title mt16">إضافة يوم إجازة</div><div class="row"><input class="field" id="schoolHolidayDate" type="date" value="'+state.date+'"><button class="btn soft" id="addSchoolHoliday">إضافة</button></div>'
-    +'<div id="schoolHolidayList" class="mt12"></div>'
-    +'<button class="btn primary mt16" id="saveSchoolCalendarBtn" style="width:100%">حفظ التقويم</button>');
-  function drawHolidays(){
-    const list=q('#schoolHolidayList',sheet),holidays=(cal.holidays||[]).slice().sort();
-    list.innerHTML=holidays.length?holidays.map(d=>'<div class="row between panel mt8"><div><strong>'+dayNames[weekdayForIso(d)]+'</strong><div class="small">'+dualDateText(d)+'</div></div><button class="btn soft" data-remove-holiday="'+d+'">حذف</button></div>').join(''):'<div class="small">لا توجد إجازات مضافة يدويًا.</div>';
-    qa('[data-remove-holiday]',sheet).forEach(b=>b.onclick=()=>{cal.holidays=cal.holidays.filter(x=>x!==b.dataset.removeHoliday);drawHolidays()});
-  }
-  qa('[data-school-day]',sheet).forEach(btn=>btn.onclick=()=>{
-    const d=Number(btn.dataset.schoolDay),set=new Set(cal.workdays||[]);
-    if(set.has(d))set.delete(d);else set.add(d);
-    if(!set.size){showToast('يجب اختيار يوم دراسة واحد على الأقل.');return}
-    cal.workdays=[...set].sort((a,b)=>a-b);btn.classList.toggle('active',set.has(d));
-  });
-  q('#addSchoolHoliday',sheet).onclick=()=>{
-    const d=q('#schoolHolidayDate',sheet).value;if(!d)return;
-    cal.holidays=[...new Set([...(cal.holidays||[]),d])].sort();drawHolidays();
-  };
-  q('#schoolCalClose',sheet).onclick=closeSheet;
-  q('#saveSchoolCalendarBtn',sheet).onclick=()=>{saveSchoolCalendar();closeSheet();renderAccount();renderFollowup();showToast('تم حفظ تقويم المدرسة.','')};
-  drawHolidays();
-}
-
 function openReportSettings(){
   const b=state.reportBranding,sig=state.reportSignatures;
   openReportSheet('<div class="row between"><div><div class="h2">إعدادات التقارير والترويسة</div><div class="small mt8">تُستخدم هذه الإعدادات تلقائيًا في كل تقارير ركّز.</div></div><button class="iconbtn" id="rsClose">×</button></div>'
@@ -1035,7 +991,7 @@ function showView(v){
 }
 qa('[data-nav]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.nav)));
 qa('[data-go]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.go)));
-q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#schoolCalendarBtn').addEventListener('click',openSchoolCalendarSettings);q('#reportSettingsBtn').addEventListener('click',openReportSettings);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
+q('#manageScheduleBtn').addEventListener('click',openScheduleManager);q('#homeScheduleBtn').addEventListener('click',openScheduleManager);q('#accountScheduleBtn').addEventListener('click',openScheduleManager);q('#reportSettingsBtn').addEventListener('click',openReportSettings);q('#openLessonBtn').addEventListener('click',()=>{const cid=q('#openLessonBtn').dataset.classId;if(cid)state.classId=cid;showView('followup')});
 
 const headerBack=q('#headerBack');
 let backDrag=null,backLongPressTimer=null,suppressBackClick=false;
@@ -1135,18 +1091,14 @@ q('#nextDay').addEventListener('click',()=>shiftDate(1));
 q('#todayBtn').addEventListener('click',()=>{state.date=todayIsoRiyadh();renderDate();renderFollowup()});
 
 function currentStudents(){return state.students.filter(s=>s.classId===state.classId)}
-function schoolCalendar(){
-  state.schoolCalendar=state.schoolCalendar||{countryCode:'SA',weekStartsOn:0,workdays:[0,1,2,3,4],holidays:[]};
-  return state.schoolCalendar;
+function schoolContext(){
+  state.schoolContext=state.schoolContext||{countryCode:'SA',weekStartsOn:0,calendarSource:'auto'};
+  return state.schoolContext;
 }
-function isSchoolHoliday(iso){return (schoolCalendar().holidays||[]).includes(iso)}
-function isSchoolWorkday(iso){return (schoolCalendar().workdays||[]).includes(weekdayForIso(iso))&&!isSchoolHoliday(iso)}
 function scheduledLessonsForDate(iso,classId,subject){
-  if(!isSchoolWorkday(iso))return [];
   const day=weekdayForIso(iso);
   return state.schedule.filter(l=>l.day===day&&l.classId===classId&&(!subject||l.subject===subject)).sort((a,b)=>minutesOf(a.start)-minutesOf(b.start));
 }
-function hasScheduledInstruction(iso,classId,subject){return scheduledLessonsForDate(iso,classId,subject).length>0}
 function attendanceSubject(){return classSubject(state.classId)}
 function attKey(sid){return state.date+'|'+attendanceSubject()+'|'+state.classId+'|'+sid}
 function legacyAttKey(sid){return state.date+'|'+state.classId+'|'+sid}
@@ -1157,8 +1109,7 @@ function parseAttendanceKey(key){
 }
 function getAtt(sid){return state.attendance[attKey(sid)]??state.attendance[legacyAttKey(sid)]??'present'}
 function ensureAttendanceDay(){
-  const subject=attendanceSubject();
-  if(!hasScheduledInstruction(state.date,state.classId,subject))return;
+  if(state.module!=='attendance')return;
   currentStudents().forEach(st=>{
     const k=attKey(st.id);
     if(!(k in state.attendance)&&!(legacyAttKey(st.id) in state.attendance))state.attendance[k]='present';
@@ -1192,11 +1143,7 @@ function setAtt(sid,val){
 }
 const attLabels={present:'حاضر',absent:'غائب',late:'متأخر',excused:'مستأذن'};
 function cycleAtt(sid){
-  const subject=attendanceSubject();
-  if(!hasScheduledInstruction(state.date,state.classId,subject)){
-    showToast(isSchoolHoliday(state.date)?'هذا اليوم مسجل إجازة مدرسية.':'لا توجد حصة لهذا الفصل والمادة في هذا اليوم.');
-    return;
-  }
+  ensureAttendanceDay();
   const seq=['present','absent','late','excused'], i=seq.indexOf(getAtt(sid));
   setAtt(sid,seq[(i+1)%seq.length]);
 }
@@ -1947,7 +1894,7 @@ function isoShift(iso,days){
   const d=dateParts(iso);d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);
 }
 function weekRangeFor(iso=state.date){
-  const startDay=Number(schoolCalendar().weekStartsOn??0);
+  const startDay=Number(schoolContext().weekStartsOn??0);
   const dow=weekdayForIso(iso);
   const back=(dow-startDay+7)%7;
   const start=isoShift(iso,-back),end=isoShift(start,6);
@@ -1955,7 +1902,7 @@ function weekRangeFor(iso=state.date){
 }
 function attendanceHistoryForWeek(studentId,classId=state.classId,subject=classSubject(classId),iso=state.date){
   const {start,end}=weekRangeFor(iso);
-  return attendanceHistoryFor(studentId,Infinity,classId,subject).filter(x=>x.date>=start&&x.date<=end&&isSchoolWorkday(x.date)&&hasScheduledInstruction(x.date,classId,subject));
+  return attendanceHistoryFor(studentId,Infinity,classId,subject).filter(x=>x.date>=start&&x.date<=end);
 }
 function attendanceCountsFromRows(rows){
   const counts={present:0,absent:0,late:0,excused:0};
@@ -2014,16 +1961,9 @@ function openAttendanceHistory(studentId,status){
 function attendancePulseHtml(studentId){
   const classId=state.classId,subject=classSubject(classId),hist=attendanceHistoryForWeek(studentId,classId,subject);
   const counts=attendanceCountsFromRows(hist);
-  const {start,end}=weekRangeFor(state.date);
-  const scheduledDates=[];
-  for(let d=start;d<=end;d=isoShift(d,1)){
-    if(isSchoolWorkday(d)&&hasScheduledInstruction(d,classId,subject))scheduledDates.push(d);
-  }
-  const byDate=new Map(hist.map(x=>[x.date,x]));
-  const segs=scheduledDates.map(date=>{
-    const x=byDate.get(date);
-    return '<span class="attendance-pulse-seg '+(x?.status||'')+'" title="'+(x?dualDateText(x.date)+' — '+attLabels[x.status]:dualDateText(date)+' — لم تسجل الحصة')+'"></span>';
-  }).join('');
+  const byDate=new Map();
+  hist.forEach(x=>byDate.set(x.date,x));
+  const segs=[...byDate.values()].map(x=>'<span class="attendance-pulse-seg '+(x.status||'')+'" title="'+dualDateText(x.date)+' — '+attLabels[x.status]+'"></span>').join('');
   const parts=[];
   if(counts.present)parts.push(counts.present+' ح');
   if(counts.absent)parts.push(counts.absent+' غ');
