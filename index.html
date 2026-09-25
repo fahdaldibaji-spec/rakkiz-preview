@@ -1284,21 +1284,85 @@ function openAddHomework(){
     const hw=ensureHomeworkDefinition({name,max,date});closeSheet();renderFollowup();showToast('تمت إضافة «'+hw.name+'». اضغط بطاقته لرصد الطلاب.','');
   };
 }
-function openHomeworkResults(homeworkId){
-  const hw=state.homeworks.find(x=>x.id===homeworkId);if(!hw)return;
-  const byStudent=new Map(homeworkEvents(homeworkId).map(e=>[e.studentId,e]));
-  const students=state.students.filter(s=>s.classId===hw.classId);
-  openSheet(`<div class="row between"><div><div class="h2">${hw.name}</div><div class="small">درجة الواجب /${hw.max} · ${hw.date}</div></div><button class="iconbtn" id="hwResultClose">×</button></div>
-    <div class="panel mt16">${students.map(st=>{const e=byStudent.get(st.id);return `<div class="test-result-row"><div class="test-result-name"><strong>${st.name}</strong><span>${e?homeworkStatusLabel(e.homeworkStatus):'لم يرصد بعد'}</span></div><span class="scorepill">${e&&Number.isFinite(Number(e.value))?`${e.value}/${hw.max}`:'—'}</span></div>`}).join('')}</div>
-    <button class="btn primary mt12" id="editHomeworkGrades" style="width:100%">إدخال / تعديل الرصد</button>`);
-  q('#hwResultClose',sheet).onclick=closeSheet;
-  q('#editHomeworkGrades',sheet).onclick=()=>openHomeworkGrades(homeworkId);
+function setHomeworkQuickState(hw,studentId,nextStatus){
+  let ev=state.events.find(e=>e.module==='homework'&&e.homeworkId===hw.id&&e.studentId===studentId);
+  if(!nextStatus){
+    if(ev)state.events=state.events.filter(e=>e!==ev);
+    return;
+  }
+  const value=nextStatus==='complete'?Number(hw.max):nextStatus==='missing'?0:(ev?.value??null);
+  const follow=nextStatus==='missing'||nextStatus==='incomplete';
+  if(ev){
+    ev.homeworkStatus=nextStatus;
+    ev.value=value;
+    ev.max=hw.max;
+    ev.label=hw.name;
+    ev.follow=follow;
+    ev.resolved=!follow;
+    ev.date=hw.date;
+    ev.classId=hw.classId;
+    ev.updatedAt=new Date().toISOString();
+  }else{
+    state.events.push({
+      id:'e'+Date.now()+Math.random(),
+      homeworkId:hw.id,classId:hw.classId,studentId,
+      date:hw.date,module:'homework',label:hw.name,
+      value,max:hw.max,homeworkStatus:nextStatus,
+      follow,resolved:!follow,createdAt:new Date().toISOString()
+    });
+  }
 }
+function cycleHomeworkStudent(hw,studentId){
+  const ev=state.events.find(e=>e.module==='homework'&&e.homeworkId===hw.id&&e.studentId===studentId);
+  const current=ev?.homeworkStatus||'';
+  if(!current||current==='incomplete'||current==='excused')setHomeworkQuickState(hw,studentId,'complete');
+  else if(current==='complete')setHomeworkQuickState(hw,studentId,'missing');
+  else if(current==='missing')setHomeworkQuickState(hw,studentId,'');
+}
+function openHomeworkQuick(homeworkId){
+  const hw=state.homeworks.find(x=>x.id===homeworkId);if(!hw)return;
+  openSheet('<div></div>');
+  function draw(restoreScroll){
+    restoreScroll=Number(restoreScroll||0);
+    const byStudent=new Map(homeworkEvents(hw.id).map(e=>[e.studentId,e]));
+    const students=state.students.filter(s=>s.classId===hw.classId);
+    const complete=[...byStudent.values()].filter(e=>e.homeworkStatus==='complete').length;
+    const missing=[...byStudent.values()].filter(e=>e.homeworkStatus==='missing').length;
+    let html='<div class="row between"><div><div class="h2">'+htmlEsc(hw.name)+'</div><div class="small">درجة الواجب /'+htmlEsc(hw.max)+' · '+htmlEsc(hw.date)+'</div></div><button class="iconbtn" id="homeworkQuickClose">×</button></div>';
+    html+='<div class="notice mt12">اضغط الطالب: <strong>أول ضغطة = تم الرصد</strong> بالدرجة كاملة، <strong>ثاني ضغطة = لم يحضر</strong>، والثالثة تلغي الحالة.</div>';
+    html+='<div class="homework-legend"><span>✓ أخضر = تم الرصد</span><span>✕ أحمر = لم يحضر</span><span>أبيض = غير مرصود</span></div>';
+    html+='<div class="row between mt12"><span class="badge">'+complete+' مرصود</span><span class="badge">'+missing+' لم يحضر</span></div>';
+    html+='<div class="homework-student-list">';
+    students.forEach(st=>{
+      const e=byStudent.get(st.id),status=e?.homeworkStatus||'';
+      const cls=status==='complete'?'complete':status==='missing'?'missing':status==='incomplete'?'incomplete':'';
+      const stateText=status?homeworkStatusLabel(status):'اضغط للرصد';
+      let detail='غير مرصود';
+      if(status==='complete')detail=String(e.value)+'/'+String(hw.max);
+      else if(status==='missing')detail='0/'+String(hw.max);
+      else if(e&&Number.isFinite(Number(e.value)))detail=String(e.value)+'/'+String(hw.max);
+      html+='<button class="homework-student-card '+cls+'" data-hw-student="'+st.id+'"><div><strong>'+htmlEsc(st.name)+'</strong><span>'+htmlEsc(detail)+'</span></div><div class="hw-state">'+htmlEsc(stateText)+'</div></button>';
+    });
+    html+='</div><button class="btn soft mt16" id="homeworkManualEdit" style="width:100%">تعديل درجات يدويًا — اختياري</button>';
+    sheet.innerHTML=html;
+    q('#homeworkQuickClose',sheet).onclick=()=>{closeSheet();renderFollowup()};
+    qa('[data-hw-student]',sheet).forEach(btn=>btn.onclick=()=>{
+      const scroll=sheetBox.scrollTop;
+      cycleHomeworkStudent(hw,btn.dataset.hwStudent);
+      draw(scroll);
+    });
+    q('#homeworkManualEdit',sheet).onclick=()=>openHomeworkGrades(hw.id);
+    requestAnimationFrame(()=>{sheetBox.scrollTop=restoreScroll});
+  }
+  draw(0);
+}
+function openHomeworkResults(homeworkId){openHomeworkQuick(homeworkId)}
+
 function openHomeworkGrades(homeworkId){
   const hw=state.homeworks.find(x=>x.id===homeworkId);if(!hw)return;
   const existing=new Map(homeworkEvents(hw.id).map(e=>[e.studentId,e]));
   sheet.innerHTML=`<div class="row between"><div><div class="h2">${hw.name} /${hw.max}</div><div class="small">حدد الحالة والدرجة لكل طالب.</div></div><button class="iconbtn" id="homeworkGradeClose">×</button></div>
-    <div class="mt12">${currentStudents().map(st=>{const e=existing.get(st.id);return `<div class="panel mt8" data-homework-row="${st.id}"><div class="sname">${st.name}</div><div class="grid2 mt8"><select class="field" data-homework-status="${st.id}"><option value="">لم يرصد</option><option value="complete" ${e?.homeworkStatus==='complete'?'selected':''}>مكتمل</option><option value="incomplete" ${e?.homeworkStatus==='incomplete'?'selected':''}>ناقص</option><option value="missing" ${e?.homeworkStatus==='missing'?'selected':''}>لم يسلم</option><option value="excused" ${e?.homeworkStatus==='excused'?'selected':''}>معذور</option></select><input class="field" type="number" min="0" max="${hw.max}" step=".25" data-homework-grade="${st.id}" value="${e?.value??''}" placeholder="الدرجة"></div></div>`}).join('')}</div>
+    <div class="mt12">${currentStudents().map(st=>{const e=existing.get(st.id);return `<div class="panel mt8" data-homework-row="${st.id}"><div class="sname">${st.name}</div><div class="grid2 mt8"><select class="field" data-homework-status="${st.id}"><option value="">لم يرصد</option><option value="complete" ${e?.homeworkStatus==='complete'?'selected':''}>مكتمل</option><option value="incomplete" ${e?.homeworkStatus==='incomplete'?'selected':''}>ناقص</option><option value="missing" ${e?.homeworkStatus==='missing'?'selected':''}>لم يحضر</option><option value="excused" ${e?.homeworkStatus==='excused'?'selected':''}>معذور</option></select><input class="field" type="number" min="0" max="${hw.max}" step=".25" data-homework-grade="${st.id}" value="${e?.value??''}" placeholder="الدرجة"></div></div>`}).join('')}</div>
     <button class="btn primary mt16" id="saveHomeworkGrades" style="width:100%">حفظ رصد الواجب</button>`;
   q('#homeworkGradeClose',sheet).onclick=closeSheet;
   qa('[data-homework-status]',sheet).forEach(sel=>sel.onchange=()=>{
